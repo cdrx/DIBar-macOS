@@ -63,6 +63,19 @@ final class SpeakerIndicatorTests: XCTestCase {
         )
     }
 
+    func testStartingStationLooksActiveBeforeAudioIsAudible() {
+        XCTAssertEqual(
+            SpeakerIndicatorPresentation.symbolName(
+                isCurrent: true,
+                isAudible: false,
+                waveFrame: 0,
+                isHovered: true,
+                isStarting: true
+            ),
+            SpeakerIndicatorPresentation.steadyWaveSymbol
+        )
+    }
+
     func testAudibleIndicatorCyclesOutwardThenLoops() {
         let symbols = (0..<6).map {
             SpeakerIndicatorPresentation.symbolName(

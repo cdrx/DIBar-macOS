@@ -6,6 +6,7 @@ private let log = Logger(subsystem: "com.dibar", category: "AppState")
 struct NetworkData {
     var channels: [Channel] = []
     var favoriteChannelIds: Set<Int> = []
+    var favoriteChannelOrder: [Int] = []
     var isLoaded: Bool = false
     var favoritesLoadFailed: Bool = false
 }
@@ -69,6 +70,7 @@ final class AppState {
     var allNetworksSelected: Bool = false
     var playingNetwork: Network?
     var networkDataCache: [Network: NetworkData] = [:]
+    @ObservationIgnored var favoriteOrderSyncTasks: [Network: Task<Void, Never>] = [:]
 
     // Search
     var searchText: String = ""
@@ -426,17 +428,14 @@ final class AppState {
         restoreSavedStationIfNeeded()
     }
 
-    /// Hotkey actions: jump to the next/previous favorite (alphabetical,
-    /// wrapping) on the network that's playing — or the browsed one when idle.
+    /// Hotkey actions: jump to the next/previous favorite in the user's manual
+    /// order, wrapping on the network that's playing — or browsed when idle.
     func cycleToNextFavorite() { cycleFavorite(offset: 1) }
     func cycleToPreviousFavorite() { cycleFavorite(offset: -1) }
 
     private func cycleFavorite(offset: Int) {
         let network = playingNetwork ?? selectedNetwork
-        guard let data = networkDataCache[network] else { return }
-        let favorites = data.channels
-            .filter { data.favoriteChannelIds.contains($0.id) }
-            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        let favorites = orderedFavoriteChannels(on: network)
         guard !favorites.isEmpty else { return }
         let count = favorites.count
         let base: Int
@@ -481,7 +480,7 @@ final class AppState {
             } else {
                 let sorted = data.channels
                     .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
-                target = sorted.first { data.favoriteChannelIds.contains($0.id) } ?? sorted[0]
+                target = orderedFavoriteChannels(on: network).first ?? sorted[0]
             }
             playChannel(target, on: network)
             announceSwitchIfEnabled()

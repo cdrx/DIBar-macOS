@@ -37,6 +37,16 @@ struct NetworkChannel: Identifiable, Hashable {
     let channel: Channel
 
     var id: String { "\(network.rawValue)-\(channel.id)" }
+
+    var tooltipText: String {
+        var lines = [channel.name, network.displayName]
+        if let description = channel.description?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !description.isEmpty {
+            lines.append("")
+            lines.append(description)
+        }
+        return lines.joined(separator: "\n")
+    }
 }
 
 struct Channel: Codable, Identifiable, Hashable {

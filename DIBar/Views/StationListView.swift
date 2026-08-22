@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct PlayingRevealRequest: Equatable {
     let network: Network
@@ -31,6 +32,7 @@ struct StationListView: View {
     @State private var highlightedIndex: Int?
     @State private var pendingPlayingReveal: PlayingRevealRequest?
     @State private var pendingRevealSawLoading = false
+    @State private var draggedFavoriteId: String?
     @FocusState private var searchFocused: Bool
 
     var body: some View {
@@ -113,6 +115,15 @@ struct StationListView: View {
                                         ForEach(appState.favoriteChannels) { item in
                                             ChannelRow(item: item, showsNetwork: appState.allNetworksSelected)
                                                 .id("fav-\(item.id)")
+                                                .onDrag {
+                                                    draggedFavoriteId = item.id
+                                                    return NSItemProvider(object: item.id as NSString)
+                                                }
+                                                .onDrop(of: [.text], delegate: FavoriteDropDelegate(
+                                                    item: item,
+                                                    appState: appState,
+                                                    draggedId: $draggedFavoriteId
+                                                ))
                                         }
                                     }
                                     Divider()
@@ -122,6 +133,12 @@ struct StationListView: View {
                                         title: favoritesTitle,
                                         showsSyncWarning: !appState.favoritesSyncAvailable
                                     )
+                                    .contextMenu {
+                                        Button("Sort Favorites by Name") {
+                                            appState.sortFavoritesByName()
+                                        }
+                                    }
+                                    .help("Drag favorites within a site to reorder. Right-click to sort.")
                                 }
                             }
 
@@ -147,7 +164,16 @@ struct StationListView: View {
                                 }
                             }
 
-                            if showSections {
+                            if searching {
+                                if appState.filteredChannels.isEmpty {
+                                    SearchEmptyState(
+                                        query: appState.searchText,
+                                        onClear: { appState.searchText = "" }
+                                    )
+                                } else {
+                                    allChannelRows
+                                }
+                            } else if showSections {
                                 Section {
                                     if allStationsExpanded {
                                         allChannelRows
@@ -363,6 +389,63 @@ struct StationListView: View {
     }
 }
 
+private struct SearchEmptyState: View {
+    let query: String
+    let onClear: () -> Void
+
+    var body: some View {
+        VStack(spacing: 6) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 18))
+                .foregroundStyle(.tertiary)
+            Text("No channels found")
+                .font(.system(size: 12, weight: .semibold))
+            Text("Nothing matches “\(query)”")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+                .multilineTextAlignment(.center)
+            Button("Clear Search", action: onClear)
+                .buttonStyle(.plain)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(Color.accentColor)
+        }
+        .padding(.horizontal, 24)
+        .padding(.vertical, 28)
+        .frame(maxWidth: .infinity)
+    }
+}
+
+private struct FavoriteDropDelegate: DropDelegate {
+    let item: NetworkChannel
+    let appState: AppState
+    @Binding var draggedId: String?
+
+    func dropEntered(info: DropInfo) {
+        MainActor.assumeIsolated {
+            guard let draggedId,
+                  let dragged = appState.favoriteChannels.first(where: { $0.id == draggedId }),
+                  dragged.id != item.id,
+                  dragged.network == item.network
+            else { return }
+            withAnimation(.easeInOut(duration: 0.15)) {
+                appState.moveFavorite(dragged, toSlotOf: item)
+            }
+        }
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        DropProposal(operation: .move)
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        MainActor.assumeIsolated {
+            draggedId = nil
+        }
+        return true
+    }
+}
+
 // MARK: - Channel Row
 
 struct ChannelRow: View {
@@ -382,6 +465,10 @@ struct ChannelRow: View {
         appState.favoriteChannelIds(on: item.network).contains(item.channel.id)
     }
 
+    private var isStarting: Bool {
+        isPlaying && appState.audioPlayer.phase == .buffering
+    }
+
     var body: some View {
         Button(action: { appState.playChannel(item) }) {
             HStack(spacing: 0) {
@@ -390,43 +477,40 @@ struct ChannelRow: View {
                 SpeakerIndicator(
                     isCurrent: isPlaying,
                     isAudible: appState.audioPlayer.isAudiblyPlaying,
-                    isHovered: isHovered
+                    isHovered: isHovered,
+                    isStarting: isStarting
                 )
 
-                Text(item.channel.name)
-                    .font(.system(size: 12))
-                    .fontWeight(isPlaying ? .semibold : .regular)
-                    .playingHighlight(isPlaying)
-                if showsNetwork {
-                    Text("· \(item.network.shortLabel)")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.tertiary)
-                        .padding(.leading, 4)
-                }
-                Spacer()
-
-                // Fixed-width slot keeps the star column aligned on every row
-                Group {
-                    if isFavorite || isHovered {
-                        Button(action: { appState.toggleFavorite(item.channel, on: item.network) }) {
-                            Image(systemName: isFavorite ? "star.fill" : "star")
-                                .font(.caption2)
-                                .foregroundStyle(isFavorite ? AnyShapeStyle(Color.favoriteStar) : AnyShapeStyle(.secondary))
-                        }
-                        .buttonStyle(.plain)
-                        .help(isFavorite ? "Remove from favorites" : "Add to favorites")
-                    } else {
-                        Color.clear
+                HStack(spacing: 0) {
+                    Text(item.channel.name)
+                        .font(.system(size: 12))
+                        .fontWeight(isPlaying ? .semibold : .regular)
+                        .playingHighlight(isPlaying)
+                    if showsNetwork {
+                        Text("· \(item.network.shortLabel)")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.tertiary)
+                            .padding(.leading, 4)
                     }
+                    Spacer()
                 }
-                .frame(width: 16, height: 14)
+                // Keep help on the descriptive middle only. The playback and
+                // favorite strips are controls, so tooltips there are noise.
+                .help(item.tooltipText)
             }
             .padding(.leading, PanelMetrics.margin)
-            .padding(.trailing, 8)
+            .padding(.trailing, PanelMetrics.favoriteControlWidth)
             .padding(.vertical, 5)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .overlay(alignment: .trailing) {
+            FavoriteToggleButton(
+                isFavorite: isFavorite,
+                isVisible: isFavorite || isHovered,
+                action: { appState.toggleFavorite(item.channel, on: item.network) }
+            )
+        }
         .background(
             isPlaying
                 ? Color.accentColor.opacity(0.1)
@@ -454,54 +538,96 @@ struct RecentRow: View {
         appState.favoriteChannelIds(on: entry.network).contains(entry.channelId)
     }
 
+    private var isStarting: Bool {
+        isPlaying && appState.audioPlayer.phase == .buffering
+    }
+
+    private var tooltipText: String {
+        guard let channel = appState.networkDataCache[entry.network]?.channels
+            .first(where: { $0.id == entry.channelId })
+        else { return "\(entry.name)\n\(entry.network.displayName)" }
+        return NetworkChannel(network: entry.network, channel: channel).tooltipText
+    }
+
     var body: some View {
         Button(action: { appState.playRecentStation(entry) }) {
             HStack(spacing: 0) {
                 SpeakerIndicator(
                     isCurrent: isPlaying,
                     isAudible: appState.audioPlayer.isAudiblyPlaying,
-                    isHovered: isHovered
+                    isHovered: isHovered,
+                    isStarting: isStarting
                 )
 
-                Text(entry.name)
-                    .font(.system(size: 12))
-                    .fontWeight(isPlaying ? .semibold : .regular)
-                    .playingHighlight(isPlaying)
-                if appState.allNetworksSelected || entry.network != appState.selectedNetwork {
-                    Text("· \(entry.network.shortLabel)")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.tertiary)
-                        .padding(.leading, 4)
-                }
-                Spacer()
-
-                Group {
-                    if isFavorite || isHovered {
-                        Button(action: { appState.toggleFavorite(channelId: entry.channelId, name: entry.name, on: entry.network) }) {
-                            Image(systemName: isFavorite ? "star.fill" : "star")
-                                .font(.caption2)
-                                .foregroundStyle(isFavorite ? AnyShapeStyle(Color.favoriteStar) : AnyShapeStyle(.secondary))
-                        }
-                        .buttonStyle(.plain)
-                        .help(isFavorite ? "Remove from favorites" : "Add to favorites")
-                    } else {
-                        Color.clear
+                HStack(spacing: 0) {
+                    Text(entry.name)
+                        .font(.system(size: 12))
+                        .fontWeight(isPlaying ? .semibold : .regular)
+                        .playingHighlight(isPlaying)
+                    if appState.allNetworksSelected || entry.network != appState.selectedNetwork {
+                        Text("· \(entry.network.shortLabel)")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.tertiary)
+                            .padding(.leading, 4)
                     }
+                    Spacer()
                 }
-                .frame(width: 16, height: 14)
+                .help(tooltipText)
             }
             .padding(.leading, PanelMetrics.margin)
-            .padding(.trailing, 8)
+            .padding(.trailing, PanelMetrics.favoriteControlWidth)
             .padding(.vertical, 5)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .overlay(alignment: .trailing) {
+            FavoriteToggleButton(
+                isFavorite: isFavorite,
+                isVisible: isFavorite || isHovered,
+                action: {
+                    appState.toggleFavorite(
+                        channelId: entry.channelId,
+                        name: entry.name,
+                        on: entry.network
+                    )
+                }
+            )
+        }
         .background(
             isPlaying
                 ? Color.accentColor.opacity(0.1)
                 : (isHovered ? Color.primary.opacity(0.06) : Color.clear)
         )
         .onHover { isHovered = $0 }
+    }
+}
+
+/// Full-height trailing target for the star. There is intentionally no help
+/// modifier here, so favoriting never competes with the station tooltip.
+private struct FavoriteToggleButton: View {
+    let isFavorite: Bool
+    let isVisible: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            ZStack {
+                Color.clear
+                if isVisible {
+                    Image(systemName: isFavorite ? "star.fill" : "star")
+                        .font(.caption2)
+                        .foregroundStyle(
+                            isFavorite
+                                ? AnyShapeStyle(Color.favoriteStar)
+                                : AnyShapeStyle(.secondary)
+                        )
+                }
+            }
+            .frame(width: PanelMetrics.favoriteControlWidth)
+            .frame(maxHeight: .infinity)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 }
 

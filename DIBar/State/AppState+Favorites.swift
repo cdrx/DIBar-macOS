@@ -10,23 +10,41 @@ extension AppState {
         networkDataCache[network]?.favoriteChannelIds ?? []
     }
 
+    func orderedFavoriteChannels(on network: Network) -> [Channel] {
+        guard let data = networkDataCache[network] else { return [] }
+        let order = completedFavoriteOrder(
+            data.favoriteChannelOrder,
+            ids: data.favoriteChannelIds,
+            channels: data.channels
+        )
+        let channelsByID = Dictionary(uniqueKeysWithValues: data.channels.map { ($0.id, $0) })
+        return order.compactMap { channelsByID[$0] }
+    }
+
     var favoritesLoadFailed: Bool {
         displayedNetworks.contains { networkDataCache[$0]?.favoritesLoadFailed ?? false }
     }
 
     var favoriteChannels: [NetworkChannel] {
         displayedNetworks.flatMap { network -> [NetworkChannel] in
+            guard let data = networkDataCache[network] else { return [] }
             let visible = favoriteChannelIds(on: network).union(sessionUnfavorited[network] ?? [])
-            return (networkDataCache[network]?.channels ?? [])
-                .filter { visible.contains($0.id) }
-                .map { NetworkChannel(network: network, channel: $0) }
+            let order = completedFavoriteOrder(
+                data.favoriteChannelOrder,
+                ids: visible,
+                channels: data.channels
+            )
+            let channelsByID = Dictionary(uniqueKeysWithValues: data.channels.map { ($0.id, $0) })
+            return order.compactMap { id in
+                channelsByID[id].map { NetworkChannel(network: network, channel: $0) }
+            }
         }
-        .sorted(by: Self.channelOrder)
     }
 
     func loadFavorites(for network: Network? = nil) async {
         let target = network ?? selectedNetwork
         var data = networkDataCache[target] ?? NetworkData()
+        var shouldSyncLocalOrder = false
         guard let ak = apiKey else {
             log.warning("loadFavorites(\(target.rawValue)): SKIPPED — no apiKey")
             data.favoritesLoadFailed = true
@@ -34,15 +52,29 @@ extension AppState {
             return
         }
         do {
-            let ids = try await DIClient.fetchFavorites(apiKey: ak, network: target)
-            data.favoriteChannelIds = applyLocalFavoriteOverrides(to: ids, network: target)
+            let serverOrder = try await DIClient.fetchFavoritesOrdered(apiKey: ak, network: target)
+            let ids = applyLocalFavoriteOverrides(to: Set(serverOrder), network: target)
+            let localOrder = Prefs.intArray(.favoriteOrder, network: target)
+            let preferred = (localOrder ?? serverOrder) + serverOrder.filter {
+                !(localOrder ?? []).contains($0)
+            }
+            data.favoriteChannelIds = ids
+            data.favoriteChannelOrder = completedFavoriteOrder(
+                preferred,
+                ids: ids,
+                channels: data.channels
+            )
             data.favoritesLoadFailed = false
+            shouldSyncLocalOrder = localOrder != nil
             log.info("loadFavorites(\(target.rawValue)): \(ids.count) favorites")
         } catch {
             data.favoritesLoadFailed = true
             log.error("loadFavorites(\(target.rawValue)) error: \(error.localizedDescription)")
         }
         networkDataCache[target] = data
+        if shouldSyncLocalOrder {
+            scheduleFavoriteOrderSync(for: target)
+        }
     }
 
     /// Reloads favorites for exactly the displayed networks whose last load
@@ -62,42 +94,64 @@ extension AppState {
         let network = network ?? selectedNetwork
         var data = networkDataCache[network] ?? NetworkData()
         let adding = !data.favoriteChannelIds.contains(channelId)
+        let visibleBeforeChange = data.favoriteChannelIds
+            .union(sessionUnfavorited[network] ?? [])
+        data.favoriteChannelOrder = completedFavoriteOrder(
+            data.favoriteChannelOrder,
+            ids: visibleBeforeChange,
+            channels: data.channels
+        )
         if adding {
             data.favoriteChannelIds.insert(channelId)
             sessionUnfavorited[network]?.remove(channelId)
+            if !data.favoriteChannelOrder.contains(channelId) {
+                data.favoriteChannelOrder.append(channelId)
+            }
         } else {
             data.favoriteChannelIds.remove(channelId)
             sessionUnfavorited[network, default: []].insert(channelId)
         }
         networkDataCache[network] = data
         log.info("toggleFavorite(\(network.rawValue)): \(adding ? "add" : "remove") \(name)")
+        recordLocalFavoriteOverride(channelId: channelId, adding: adding, network: network)
+        persistFavoriteOrder(for: network)
+    }
 
-        guard favoritesSyncAvailable, let ak = apiKey, let mid = memberId else {
-            recordLocalFavoriteOverride(channelId: channelId, adding: adding, network: network)
-            return
-        }
+    /// Reorder favorites within one site. All Sites displays each site's
+    /// independently ordered block because the service has no cross-site list.
+    func moveFavorite(_ item: NetworkChannel, toSlotOf target: NetworkChannel) {
+        guard item.network == target.network, item.id != target.id,
+              var data = networkDataCache[item.network]
+        else { return }
+        let visible = data.favoriteChannelIds.union(sessionUnfavorited[item.network] ?? [])
+        var order = completedFavoriteOrder(
+            data.favoriteChannelOrder,
+            ids: visible,
+            channels: data.channels
+        )
+        guard let from = order.firstIndex(of: item.channel.id),
+              let to = order.firstIndex(of: target.channel.id)
+        else { return }
+        let moved = order.remove(at: from)
+        order.insert(moved, at: to)
+        data.favoriteChannelOrder = order
+        networkDataCache[item.network] = data
+        persistFavoriteOrder(for: item.network)
+    }
 
-        Task {
-            do {
-                // Bulk-replace endpoint: read the server's ordered list, apply
-                // this one change, and write the merged result back.
-                var ids = try await DIClient.fetchFavoritesOrdered(apiKey: ak, network: network)
-                if adding {
-                    if !ids.contains(channelId) { ids.append(channelId) }
-                } else {
-                    ids.removeAll { $0 == channelId }
-                }
-                try await DIClient.setFavorites(channelIds: ids, memberId: mid, apiKey: ak, network: network)
-                clearLocalFavoriteOverrides(for: network)
-                await loadFavorites(for: network)
-            } catch {
-                if case DIClientError.httpError(let code) = error, code == 404 || code == 405 {
-                    favoritesSyncAvailable = false
-                }
-                recordLocalFavoriteOverride(channelId: channelId, adding: adding, network: network)
-                log.error("toggleFavorite(\(network.rawValue)) sync failed: \(error.localizedDescription)")
-            }
+    func sortFavoritesByName() {
+        for network in displayedNetworks {
+            guard var data = networkDataCache[network] else { continue }
+            let visible = data.favoriteChannelIds.union(sessionUnfavorited[network] ?? [])
+            data.favoriteChannelOrder = completedFavoriteOrder(
+                [],
+                ids: visible,
+                channels: data.channels
+            )
+            networkDataCache[network] = data
+            persistFavoriteOrder(for: network)
         }
+        log.info("sortFavoritesByName")
     }
 
     /// Local additions/removals that couldn't be synced, persisted per network
@@ -128,5 +182,98 @@ extension AppState {
     private func applyLocalFavoriteOverrides(to ids: Set<Int>, network: Network) -> Set<Int> {
         let (added, removed) = localFavoriteOverrides(for: network)
         return ids.union(added).subtracting(removed)
+    }
+
+    /// Preserve a preferred sequence, then append resolvable missing channels
+    /// alphabetically. Unknown ids remain stable at the end until a catalog
+    /// refresh can resolve them.
+    private func completedFavoriteOrder(
+        _ preferred: [Int],
+        ids: Set<Int>,
+        channels: [Channel]
+    ) -> [Int] {
+        var seen: Set<Int> = []
+        var result = preferred.filter { ids.contains($0) && seen.insert($0).inserted }
+
+        let missingChannels = channels
+            .filter { ids.contains($0.id) && !seen.contains($0.id) }
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        result.append(contentsOf: missingChannels.map(\.id))
+        seen.formUnion(missingChannels.map(\.id))
+
+        result.append(contentsOf: ids.filter { !seen.contains($0) }.sorted())
+        return result
+    }
+
+    /// Persist immediately so a drag ending outside a row cannot lose its
+    /// order, then debounce the service's bulk-replace endpoint.
+    private func persistFavoriteOrder(for network: Network) {
+        guard let data = networkDataCache[network] else { return }
+        let activeOrder = completedFavoriteOrder(
+            data.favoriteChannelOrder,
+            ids: data.favoriteChannelIds,
+            channels: data.channels
+        )
+        let channels = data.channels
+        Prefs.set(activeOrder, for: .favoriteOrder, network: network)
+        scheduleFavoriteOrderSync(for: network)
+    }
+
+    private func scheduleFavoriteOrderSync(for network: Network) {
+        guard let data = networkDataCache[network] else { return }
+        let activeOrder = completedFavoriteOrder(
+            data.favoriteChannelOrder,
+            ids: data.favoriteChannelIds,
+            channels: data.channels
+        )
+        Prefs.set(activeOrder, for: .favoriteOrder, network: network)
+
+        guard favoritesSyncAvailable, let apiKey, let memberId else { return }
+        favoriteOrderSyncTasks[network]?.cancel()
+        favoriteOrderSyncTasks[network] = Task { [weak self] in
+            do {
+                try await Task.sleep(for: .milliseconds(300))
+                try Task.checkCancellation()
+                guard let self else { return }
+                // The endpoint replaces the entire list. Re-read immediately
+                // before writing so favorites changed on another device are
+                // merged rather than silently erased.
+                let serverOrder = try await DIClient.fetchFavoritesOrdered(
+                    apiKey: apiKey,
+                    network: network
+                )
+                try Task.checkCancellation()
+                let (added, removed) = self.localFavoriteOverrides(for: network)
+                let finalIDs = Set(serverOrder).union(added).subtracting(removed)
+                let preferred = activeOrder + serverOrder.filter { !activeOrder.contains($0) }
+                let finalOrder = self.completedFavoriteOrder(
+                    preferred,
+                    ids: finalIDs,
+                    channels: channels
+                )
+                try await DIClient.setFavorites(
+                    channelIds: finalOrder,
+                    memberId: memberId,
+                    apiKey: apiKey,
+                    network: network
+                )
+                try Task.checkCancellation()
+                guard Prefs.intArray(.favoriteOrder, network: network) == activeOrder else { return }
+                if var latest = self.networkDataCache[network] {
+                    latest.favoriteChannelIds = finalIDs
+                    latest.favoriteChannelOrder = finalOrder
+                    self.networkDataCache[network] = latest
+                }
+                Prefs.remove(.favoriteOrder, network: network)
+                self.clearLocalFavoriteOverrides(for: network)
+            } catch is CancellationError {
+                return
+            } catch {
+                if case DIClientError.httpError(let code) = error, code == 404 || code == 405 {
+                    self?.favoritesSyncAvailable = false
+                }
+                log.error("favorite order sync(\(network.rawValue)) failed: \(error.localizedDescription)")
+            }
+        }
     }
 }

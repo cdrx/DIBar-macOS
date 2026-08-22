@@ -320,6 +320,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, @preconcurrency SPUSta
     )
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Station tooltips carry the site and channel description, so they are
+        // browseable content rather than delayed explanations of a control.
+        UserDefaults.standard.register(defaults: ["NSInitialToolTipDelay": 250])
+
         // A pending update outranks automatic station restoration. AppState
         // still bootstraps account and channel data; only autoplay waits.
         appState = AppState(

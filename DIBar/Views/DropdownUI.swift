@@ -21,6 +21,8 @@ enum PanelMetrics {
     /// Shared starting position for section titles and station names.
     static var textColumn: CGFloat { margin + iconSlot }
     static let slotHeight: CGFloat = 14
+    /// Full-height trailing target reserved for the favorite control.
+    static let favoriteControlWidth: CGFloat = 32
 }
 
 /// Shared chrome for the custom dropdown popovers (NetworkPicker,
@@ -127,11 +129,13 @@ enum SpeakerIndicatorPresentation {
         isAudible: Bool,
         waveFrame: Int,
         reduceMotion: Bool = false,
-        isHovered: Bool = false
+        isHovered: Bool = false,
+        isStarting: Bool = false
     ) -> String? {
         if isCurrent && isAudible {
             return waveSymbol(waveFrame: waveFrame, reduceMotion: reduceMotion)
         }
+        if isStarting { return steadyWaveSymbol }
         if isCurrent { return "speaker.fill" }
         return isHovered ? "play.fill" : nil
     }
@@ -148,8 +152,9 @@ enum SpeakerIndicatorPresentation {
 }
 
 /// Fixed-width leading playback slot: low-rate stepped blue waves while
-/// audible, a muted speaker while current-but-paused, a play cue when an
-/// inactive row is hovered, empty otherwise.
+/// audible, a steady accent speaker while playback starts, a muted speaker
+/// while current-but-paused, a play cue when an inactive row is hovered,
+/// empty otherwise.
 /// All instances share the panel's isolated clock; there is deliberately no
 /// symbolEffect, interpolated transition, or changing Image identity here.
 struct SpeakerIndicator: View {
@@ -158,6 +163,7 @@ struct SpeakerIndicator: View {
     let isCurrent: Bool
     let isAudible: Bool
     var isHovered: Bool = false
+    var isStarting: Bool = false
 
     var body: some View {
         Group {
@@ -167,6 +173,10 @@ struct SpeakerIndicator: View {
                     waveLayer(symbol: "speaker.wave.2.fill", index: 1)
                     waveLayer(symbol: "speaker.wave.3.fill", index: 2)
                 }
+            } else if isStarting {
+                Image(systemName: SpeakerIndicatorPresentation.steadyWaveSymbol)
+                    .font(.system(size: SpeakerIndicatorPresentation.glyphSize))
+                    .foregroundStyle(Color.accentColor)
             } else if isCurrent {
                 Image(systemName: "speaker.fill")
                     .font(.system(size: SpeakerIndicatorPresentation.glyphSize))

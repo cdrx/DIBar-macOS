@@ -44,6 +44,7 @@ enum Prefs {
         case lastStationId = "last_station_id"
         case localFavAdded = "local_fav_added"
         case localFavRemoved = "local_fav_removed"
+        case favoriteOrder = "favorite_order"
     }
 
     // MARK: - Typed accessors
@@ -109,6 +110,21 @@ enum Prefs {
 
     static func set(_ value: Set<Int>, for key: NetworkKey, network: Network) {
         set(value.map(String.init).joined(separator: ","), for: key, network: network)
+    }
+
+    /// Ordered integer lists use the same compact comma-separated storage as
+    /// sets, but preserve their sequence. nil means no local ordering override.
+    static func intArray(_ key: NetworkKey, network: Network) -> [Int]? {
+        guard let raw = string(key, network: network) else { return nil }
+        return raw.split(separator: ",").compactMap { Int($0) }
+    }
+
+    static func set(_ value: [Int], for key: NetworkKey, network: Network) {
+        set(value.map(String.init).joined(separator: ","), for: key, network: network)
+    }
+
+    static func remove(_ key: NetworkKey, network: Network) {
+        set(nil, for: key, network: network)
     }
 
     // MARK: - Raw storage
