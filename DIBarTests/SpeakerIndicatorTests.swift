@@ -19,6 +19,39 @@ final class SpeakerIndicatorTests: XCTestCase {
         ))
     }
 
+    func testHoveringANonCurrentRowShowsThePlayAffordance() {
+        XCTAssertEqual(
+            SpeakerIndicatorPresentation.symbolName(
+                isCurrent: false,
+                isAudible: false,
+                waveFrame: 0,
+                isHovered: true
+            ),
+            "play.fill"
+        )
+    }
+
+    func testHoverDoesNotDisplaceTheCurrentStationIndicator() {
+        XCTAssertEqual(
+            SpeakerIndicatorPresentation.symbolName(
+                isCurrent: true,
+                isAudible: false,
+                waveFrame: 0,
+                isHovered: true
+            ),
+            "speaker.fill"
+        )
+        XCTAssertEqual(
+            SpeakerIndicatorPresentation.symbolName(
+                isCurrent: true,
+                isAudible: true,
+                waveFrame: 1,
+                isHovered: true
+            ),
+            "speaker.wave.2.fill"
+        )
+    }
+
     func testCurrentNonAudibleIndicatorIsStaticSpeaker() {
         XCTAssertEqual(
             SpeakerIndicatorPresentation.symbolName(
@@ -77,6 +110,14 @@ final class SpeakerIndicatorTests: XCTestCase {
             },
             [0, 1, 2, 0, 1, 2]
         )
+    }
+
+    func testLeadingIndicatorAlignsWithNetworkPickerAndClearsText() {
+        XCTAssertEqual(SpeakerIndicatorPresentation.glyphSize, 10)
+        XCTAssertEqual(PanelMetrics.margin, 16)
+        XCTAssertEqual(PanelMetrics.iconSlot, 24)
+        XCTAssertEqual(PanelMetrics.textColumn, 40)
+        XCTAssertEqual(PanelMetrics.textColumn - PanelMetrics.iconSlot, PanelMetrics.margin)
     }
 
     func testSpeakerClockOnlyRunsForVisibleAudibleMotion() {

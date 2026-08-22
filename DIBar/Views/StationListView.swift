@@ -384,7 +384,15 @@ struct ChannelRow: View {
 
     var body: some View {
         Button(action: { appState.playChannel(item) }) {
-            HStack(spacing: 4) {
+            HStack(spacing: 0) {
+                // The speaker begins on the same line as the network picker;
+                // station text begins on a shared column with section titles.
+                SpeakerIndicator(
+                    isCurrent: isPlaying,
+                    isAudible: appState.audioPlayer.isAudiblyPlaying,
+                    isHovered: isHovered
+                )
+
                 Text(item.channel.name)
                     .font(.system(size: 12))
                     .fontWeight(isPlaying ? .semibold : .regular)
@@ -393,12 +401,11 @@ struct ChannelRow: View {
                     Text("· \(item.network.shortLabel)")
                         .font(.system(size: 11))
                         .foregroundStyle(.tertiary)
+                        .padding(.leading, 4)
                 }
                 Spacer()
 
-                // Fixed-width slots keep the star column aligned on every row
-                SpeakerIndicator(isCurrent: isPlaying, isAudible: appState.audioPlayer.isAudiblyPlaying)
-
+                // Fixed-width slot keeps the star column aligned on every row
                 Group {
                     if isFavorite || isHovered {
                         Button(action: { appState.toggleFavorite(item.channel, on: item.network) }) {
@@ -414,7 +421,7 @@ struct ChannelRow: View {
                 }
                 .frame(width: 16, height: 14)
             }
-            .padding(.leading, 16)
+            .padding(.leading, PanelMetrics.margin)
             .padding(.trailing, 8)
             .padding(.vertical, 5)
             .contentShape(Rectangle())
@@ -449,7 +456,13 @@ struct RecentRow: View {
 
     var body: some View {
         Button(action: { appState.playRecentStation(entry) }) {
-            HStack(spacing: 4) {
+            HStack(spacing: 0) {
+                SpeakerIndicator(
+                    isCurrent: isPlaying,
+                    isAudible: appState.audioPlayer.isAudiblyPlaying,
+                    isHovered: isHovered
+                )
+
                 Text(entry.name)
                     .font(.system(size: 12))
                     .fontWeight(isPlaying ? .semibold : .regular)
@@ -458,10 +471,9 @@ struct RecentRow: View {
                     Text("· \(entry.network.shortLabel)")
                         .font(.system(size: 11))
                         .foregroundStyle(.tertiary)
+                        .padding(.leading, 4)
                 }
                 Spacer()
-
-                SpeakerIndicator(isCurrent: isPlaying, isAudible: appState.audioPlayer.isAudiblyPlaying)
 
                 Group {
                     if isFavorite || isHovered {
@@ -478,7 +490,7 @@ struct RecentRow: View {
                 }
                 .frame(width: 16, height: 14)
             }
-            .padding(.leading, 16)
+            .padding(.leading, PanelMetrics.margin)
             .padding(.trailing, 8)
             .padding(.vertical, 5)
             .contentShape(Rectangle())
@@ -533,7 +545,7 @@ struct SectionHeader: View {
                 .help(isExpanded.wrappedValue ? "Collapse" : "Expand")
             }
         }
-        .padding(.leading, 16)
+        .padding(.leading, PanelMetrics.textColumn)
         .padding(.trailing, 11)
         .padding(.top, 10)
         .padding(.bottom, 4)

@@ -12,6 +12,17 @@ extension Color {
     })
 }
 
+enum PanelMetrics {
+    /// The panel's standard left margin. In DIBar the network picker begins
+    /// with text, so the playback glyph's left edge aligns to this line.
+    static let margin: CGFloat = 16
+    /// The glyph and the whitespace between it and the station name.
+    static let iconSlot: CGFloat = 24
+    /// Shared starting position for section titles and station names.
+    static var textColumn: CGFloat { margin + iconSlot }
+    static let slotHeight: CGFloat = 14
+}
+
 /// Shared chrome for the custom dropdown popovers (NetworkPicker,
 /// OutputDevicePicker, SleepTimerView, SongActionsMenu). Native Menu can't
 /// right-justify icons or color individual rows, so these popovers are hand
@@ -109,16 +120,20 @@ enum SpeakerIndicatorPresentation {
     static var waveFrameInterval: TimeInterval {
         waveCycleDuration / Double(waveFrameCount)
     }
+    static let glyphSize: CGFloat = 10
 
     static func symbolName(
         isCurrent: Bool,
         isAudible: Bool,
         waveFrame: Int,
-        reduceMotion: Bool = false
+        reduceMotion: Bool = false,
+        isHovered: Bool = false
     ) -> String? {
-        guard isCurrent else { return nil }
-        guard isAudible else { return "speaker.fill" }
-        return waveSymbol(waveFrame: waveFrame, reduceMotion: reduceMotion)
+        if isCurrent && isAudible {
+            return waveSymbol(waveFrame: waveFrame, reduceMotion: reduceMotion)
+        }
+        if isCurrent { return "speaker.fill" }
+        return isHovered ? "play.fill" : nil
     }
 
     static func waveSymbol(waveFrame: Int, reduceMotion: Bool) -> String {
@@ -132,8 +147,9 @@ enum SpeakerIndicatorPresentation {
     }
 }
 
-/// Fixed-width trailing speaker slot: low-rate stepped blue waves while
-/// audible, a muted speaker while current-but-paused, empty otherwise.
+/// Fixed-width leading playback slot: low-rate stepped blue waves while
+/// audible, a muted speaker while current-but-paused, a play cue when an
+/// inactive row is hovered, empty otherwise.
 /// All instances share the panel's isolated clock; there is deliberately no
 /// symbolEffect, interpolated transition, or changing Image identity here.
 struct SpeakerIndicator: View {
@@ -141,6 +157,7 @@ struct SpeakerIndicator: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let isCurrent: Bool
     let isAudible: Bool
+    var isHovered: Bool = false
 
     var body: some View {
         Group {
@@ -152,22 +169,29 @@ struct SpeakerIndicator: View {
                 }
             } else if isCurrent {
                 Image(systemName: "speaker.fill")
-                    .font(.caption2)
+                    .font(.system(size: SpeakerIndicatorPresentation.glyphSize))
+                    .foregroundStyle(.secondary)
+            } else if isHovered {
+                Image(systemName: "play.fill")
+                    .font(.system(size: SpeakerIndicatorPresentation.glyphSize))
                     .foregroundStyle(.secondary)
             } else {
                 Color.clear
             }
         }
-        // The SF Symbol variants have different intrinsic widths (roughly
-        // 12/14/17pt at this size). A leading-aligned frame keeps the speaker
-        // body and each successive wave at fixed x coordinates instead of
-        // recentering the whole glyph on every step.
-        .frame(width: 18, height: 14, alignment: .leading)
+        // Align every variant to the network picker's text edge above. The
+        // ZStack keeps the animated speaker bodies coincident while this slot
+        // supplies a stable gap before the station name.
+        .frame(
+            width: PanelMetrics.iconSlot,
+            height: PanelMetrics.slotHeight,
+            alignment: .leading
+        )
     }
 
     private func waveLayer(symbol: String, index: Int) -> some View {
         Image(systemName: symbol)
-            .font(.caption2)
+            .font(.system(size: SpeakerIndicatorPresentation.glyphSize))
             .foregroundStyle(Color.accentColor)
             .opacity(activeWaveIndex == index ? 1 : 0)
     }
