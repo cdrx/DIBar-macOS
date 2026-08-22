@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.4.3
+
+### Station browsing
+
+Channel rows now reveal a play control on hover, keep the speaker aligned with the site picker, and show immediate feedback while a newly selected stream starts. Search has a clear empty state when no channels match.
+
+### Favorites
+
+Favorites can now be reordered by dragging. The section menu can restore alphabetical order, and each site's custom order is saved and synchronized. Favorite stars are also brighter and easier to distinguish in light mode.
+
+### Channel details
+
+Hovering over a channel's details now shows its service and description. Tooltips stay away from the full playback and favorite control areas, keeping both targets clear and responsive.
+
 ## 1.4.2
 
 ### Automatic updates
