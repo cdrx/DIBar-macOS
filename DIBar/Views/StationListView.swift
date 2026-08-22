@@ -545,7 +545,7 @@ struct RecentRow: View {
     private var tooltipText: String {
         guard let channel = appState.networkDataCache[entry.network]?.channels
             .first(where: { $0.id == entry.channelId })
-        else { return "\(entry.name)\n\(entry.network.displayName)" }
+        else { return "\(entry.name) · \(entry.network.displayName)" }
         return NetworkChannel(network: entry.network, channel: channel).tooltipText
     }
 

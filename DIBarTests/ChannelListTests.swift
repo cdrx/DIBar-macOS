@@ -34,8 +34,7 @@ final class ChannelListTests: XCTestCase {
             )
         )
         XCTAssertEqual(item.tooltipText, """
-            Smooth Jazz
-            Jazz Radio
+            Smooth Jazz · Jazz Radio
 
             Relaxed contemporary jazz.
             """)

@@ -39,7 +39,7 @@ struct NetworkChannel: Identifiable, Hashable {
     var id: String { "\(network.rawValue)-\(channel.id)" }
 
     var tooltipText: String {
-        var lines = [channel.name, network.displayName]
+        var lines = ["\(channel.name) · \(network.displayName)"]
         if let description = channel.description?.trimmingCharacters(in: .whitespacesAndNewlines),
            !description.isEmpty {
             lines.append("")
