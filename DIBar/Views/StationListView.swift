@@ -404,7 +404,7 @@ struct ChannelRow: View {
                         Button(action: { appState.toggleFavorite(item.channel, on: item.network) }) {
                             Image(systemName: isFavorite ? "star.fill" : "star")
                                 .font(.caption2)
-                                .foregroundStyle(isFavorite ? AnyShapeStyle(.yellow.opacity(0.65)) : AnyShapeStyle(.secondary))
+                                .foregroundStyle(isFavorite ? AnyShapeStyle(Color.favoriteStar) : AnyShapeStyle(.secondary))
                         }
                         .buttonStyle(.plain)
                         .help(isFavorite ? "Remove from favorites" : "Add to favorites")
@@ -468,7 +468,7 @@ struct RecentRow: View {
                         Button(action: { appState.toggleFavorite(channelId: entry.channelId, name: entry.name, on: entry.network) }) {
                             Image(systemName: isFavorite ? "star.fill" : "star")
                                 .font(.caption2)
-                                .foregroundStyle(isFavorite ? AnyShapeStyle(.yellow.opacity(0.65)) : AnyShapeStyle(.secondary))
+                                .foregroundStyle(isFavorite ? AnyShapeStyle(Color.favoriteStar) : AnyShapeStyle(.secondary))
                         }
                         .buttonStyle(.plain)
                         .help(isFavorite ? "Remove from favorites" : "Add to favorites")

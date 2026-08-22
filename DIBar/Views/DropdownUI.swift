@@ -1,4 +1,16 @@
+import AppKit
 import SwiftUI
+
+extension Color {
+    /// A saturated gold keeps the small favorite glyph visible on the light
+    /// panel without the pale wash of systemYellow or a muddy brown cast.
+    /// Dark mode gets a slightly warmer, brighter yellow.
+    static let favoriteStar = Color(nsColor: NSColor(name: nil) { appearance in
+        appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+            ? NSColor(srgbRed: 1.00, green: 0.78, blue: 0.09, alpha: 1)
+            : NSColor(srgbRed: 1.00, green: 184.0 / 255.0, blue: 0.00, alpha: 1)
+    })
+}
 
 /// Shared chrome for the custom dropdown popovers (NetworkPicker,
 /// OutputDevicePicker, SleepTimerView, SongActionsMenu). Native Menu can't
