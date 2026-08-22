@@ -3,6 +3,14 @@
     <channel>
         <title>DIBar</title>
         <item>
+            <title>1.4.3</title>
+            <pubDate>Sat, 22 Aug 2026 12:46:36 -0600</pubDate>
+            <sparkle:version>11</sparkle:version>
+            <sparkle:shortVersionString>1.4.3</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <enclosure url="https://github.com/drmikexo2/DIBar-macOS/releases/download/v1.4.3/DIBar-v1.4.3-macOS.zip" length="3149423" type="application/octet-stream" sparkle:edSignature="zN26KucbVfWaSNZm0QWmcNj1dRVqOwKK4ISt6vHbr/sYHDAiISucc1o7Y3j8wXuew9lY/bHTBfXsxlo2TZSHCw=="/>
+        </item>
+        <item>
             <title>1.4.2</title>
             <pubDate>Thu, 30 Jul 2026 14:31:23 -0600</pubDate>
             <sparkle:version>10</sparkle:version>
@@ -17,14 +25,6 @@
             <sparkle:shortVersionString>1.4.1</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <enclosure url="https://github.com/drmikexo2/DIBar-macOS/releases/download/v1.4.1/DIBar-v1.4.1-macOS.zip" length="3080577" type="application/octet-stream" sparkle:edSignature="mBwaywUmzbWe53fr22l+aAKLo4T22yhgH8rnVxHrxjf/ECXVTw+bh9q9zPfdHXuvRZbV4xP7bcqXfon9CibTDQ=="/>
-        </item>
-        <item>
-            <title>1.4.0</title>
-            <pubDate>Tue, 28 Jul 2026 20:03:27 -0600</pubDate>
-            <sparkle:version>8</sparkle:version>
-            <sparkle:shortVersionString>1.4.0</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/drmikexo2/DIBar-macOS/releases/download/v1.4.0/DIBar-v1.4.0-macOS.zip" length="3084282" type="application/octet-stream" sparkle:edSignature="1uBhSlk3ULYEzpshyzJ79MbP59rM475GbC9zYKravvLxBGNKeCA+eXw6aCWNXDNvvlERVX8VBxfoFcBXse8bDQ=="/>
         </item>
     </channel>
 </rss>
