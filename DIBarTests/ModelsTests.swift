@@ -2,6 +2,60 @@ import XCTest
 @testable import DIBar
 
 final class ModelsTests: XCTestCase {
+    // MARK: - Menu-bar line composition
+
+    @MainActor
+    func testMenuBarLineOneUsesChannelThenSite() {
+        XCTAssertEqual(
+            AppState.composeMenuBarLine1(
+                channel: "Ambient", site: "DI.FM",
+                showChannel: true, showSite: true
+            ),
+            "Ambient · DI.FM"
+        )
+    }
+
+    @MainActor
+    func testMenuBarLineOneHonorsIndependentChannelAndSiteToggles() {
+        XCTAssertEqual(
+            AppState.composeMenuBarLine1(
+                channel: "Ambient", site: "DI.FM",
+                showChannel: true, showSite: false
+            ),
+            "Ambient"
+        )
+        XCTAssertEqual(
+            AppState.composeMenuBarLine1(
+                channel: "Ambient", site: "DI.FM",
+                showChannel: false, showSite: true
+            ),
+            "DI.FM"
+        )
+        XCTAssertNil(
+            AppState.composeMenuBarLine1(
+                channel: "Ambient", site: "DI.FM",
+                showChannel: false, showSite: false
+            )
+        )
+    }
+
+    @MainActor
+    func testMenuBarLineOneSkipsEmptyValuesAndTruncatesCombinedLabel() {
+        XCTAssertEqual(
+            AppState.composeMenuBarLine1(
+                channel: "", site: "DI.FM",
+                showChannel: true, showSite: true
+            ),
+            "DI.FM"
+        )
+        let composed = AppState.composeMenuBarLine1(
+            channel: String(repeating: "A", count: 30), site: "Long Site Name",
+            showChannel: true, showSite: true
+        )
+        XCTAssertEqual(composed?.count, 35)
+        XCTAssertTrue(composed?.hasSuffix("…") == true)
+    }
+
     // MARK: - NowPlaying.formatTime
 
     func testFormatTime() {

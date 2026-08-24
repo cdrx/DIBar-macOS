@@ -161,12 +161,12 @@ struct PlayerControlsView: View {
         }
     }
 
-    /// "Network · Channel"; when browsing a different network than the one
+    /// "Channel · Network"; when browsing a different network than the one
     /// playing, tapping it jumps back to the playing network's station list.
     @ViewBuilder
     private func channelLine(track: NowPlaying) -> some View {
         let network = player.currentNetwork
-        let label = network.map { "\($0.displayName) · \(track.channelName)" } ?? track.channelName
+        let label = network.map { "\(track.channelName) · \($0.displayName)" } ?? track.channelName
         // In All-Sites mode the playing channel is already on screen, and the
         // jump would drop the user out of All mode — plain text instead.
         if let network, !appState.allNetworksSelected, network != appState.selectedNetwork {

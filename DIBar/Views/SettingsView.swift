@@ -44,8 +44,8 @@ struct SettingsWindowView: View {
             settingsRow("Menu bar") {
                 HStack(spacing: 4) {
                     ToggleChip(title: "play/pause", systemImage: "playpause.fill", isOn: Bindable(appState).menuBarShowPlayState)
-                    ToggleChip(title: "Site", isOn: Bindable(appState).menuBarShowSite)
                     ToggleChip(title: "Channel", isOn: Bindable(appState).menuBarShowStation)
+                    ToggleChip(title: "Site", isOn: Bindable(appState).menuBarShowSite)
                     ToggleChip(title: "Artist", isOn: Bindable(appState).menuBarShowArtist)
                     ToggleChip(title: "Song", isOn: Bindable(appState).menuBarShowSong)
                 }

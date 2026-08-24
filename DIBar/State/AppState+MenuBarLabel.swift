@@ -3,13 +3,15 @@ import Foundation
 /// Menu-bar label composition: which components show is governed by the
 /// toggles stored on AppState; this file owns how they join and truncate.
 extension AppState {
-    /// "Site · Station" for the menu bar, per the component toggles; nil when
+    /// "Channel · Site" for the menu bar, per the component toggles; nil when
     /// idle or nothing is selected for this line.
     var menuBarLine1: String? {
         guard audioPlayer.isPlaying else { return nil }
-        return composedLine1(
+        return Self.composeMenuBarLine1(
+            channel: audioPlayer.currentChannel?.name,
             site: audioPlayer.currentNetwork?.displayName,
-            station: audioPlayer.currentChannel?.name
+            showChannel: menuBarShowStation,
+            showSite: menuBarShowSite
         )
     }
 
@@ -22,9 +24,11 @@ extension AppState {
     /// Preview variants for the settings area: live values while playing,
     /// placeholder examples otherwise. Same joining logic as the real label.
     var menuBarPreviewLine1: String? {
-        composedLine1(
+        Self.composeMenuBarLine1(
+            channel: audioPlayer.isPlaying ? audioPlayer.currentChannel?.name : "Ambient",
             site: audioPlayer.isPlaying ? audioPlayer.currentNetwork?.displayName : "Jazz Radio",
-            station: audioPlayer.isPlaying ? audioPlayer.currentChannel?.name : "Ambient"
+            showChannel: menuBarShowStation,
+            showSite: menuBarShowSite
         )
     }
 
@@ -35,13 +39,18 @@ extension AppState {
         return composedLine2(artist: "Metallica", song: "So What")
     }
 
-    private func composedLine1(site: String?, station: String?) -> String? {
+    static func composeMenuBarLine1(
+        channel: String?,
+        site: String?,
+        showChannel: Bool,
+        showSite: Bool
+    ) -> String? {
         var parts: [String] = []
-        if menuBarShowSite, let site, !site.isEmpty {
-            parts.append(site)
+        if showChannel, let channel, !channel.isEmpty {
+            parts.append(channel)
         }
-        if menuBarShowStation, let station, !station.isEmpty {
-            parts.append(station)
+        if showSite, let site, !site.isEmpty {
+            parts.append(site)
         }
         guard !parts.isEmpty else { return nil }
         return Self.truncateForMenuBar(parts.joined(separator: " · "))
