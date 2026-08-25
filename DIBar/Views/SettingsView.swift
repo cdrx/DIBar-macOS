@@ -7,6 +7,10 @@ struct SettingsWindowView: View {
     @State private var launchAtLogin: Bool?
     @State private var isUpdatingLaunchAtLogin = false
     @State private var showLogoutConfirmation = false
+    @State private var draggedMenuBarComponent: MenuBarComponent?
+    @State private var dragOriginMenuBarOrder: [MenuBarComponent]?
+    @State private var provisionalMenuBarOrder: [MenuBarComponent]?
+    @State private var menuBarDropTargetSlot: Int?
     var onCheckForUpdates: () -> Void = {}
 
     var body: some View {
@@ -57,15 +61,7 @@ struct SettingsWindowView: View {
                         .foregroundStyle(.primary)
                         .accessibilityLabel("DIBar logo")
 
-                    VStack(spacing: 4) {
-                        ToggleChip(title: "Channel", width: 60, isOn: Bindable(appState).menuBarShowStation)
-                        ToggleChip(title: "Artist", width: 60, isOn: Bindable(appState).menuBarShowArtist)
-                    }
-
-                    VStack(spacing: 4) {
-                        ToggleChip(title: "Site", width: 46, isOn: Bindable(appState).menuBarShowSite)
-                        ToggleChip(title: "Song", width: 46, isOn: Bindable(appState).menuBarShowSong)
-                    }
+                    menuBarMetadataGrid
                 }
                 .frame(maxWidth: .infinity, alignment: .center)
             }
@@ -74,8 +70,8 @@ struct SettingsWindowView: View {
             .padding(.vertical, 6)
 
             Image(nsImage: MenuBarLabelRenderer.labelImage(
-                line1: appState.menuBarPreviewLine1,
-                line2: appState.menuBarPreviewLine2,
+                line1: displayedMenuBarPreviewLines.line1,
+                line2: displayedMenuBarPreviewLines.line2,
                 glyph: previewGlyph
             ))
             .padding(.horizontal, 10)
@@ -401,6 +397,92 @@ struct SettingsWindowView: View {
         return .playing
     }
 
+    private var menuBarMetadataGrid: some View {
+        let order = displayedMenuBarOrder
+        return HStack(spacing: 8) {
+            VStack(spacing: 4) {
+                menuBarComponentChip(order[0], in: 0)
+                menuBarComponentChip(order[2], in: 2)
+            }
+            VStack(spacing: 4) {
+                menuBarComponentChip(order[1], in: 1)
+                menuBarComponentChip(order[3], in: 3)
+            }
+        }
+        .contextMenu {
+            Button("Restore Default Order") {
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    clearMenuBarDrag()
+                    appState.restoreDefaultMenuBarComponentOrder()
+                }
+            }
+            .disabled(appState.menuBarComponentOrder == MenuBarComponent.defaultOrder)
+        }
+    }
+
+    private var displayedMenuBarOrder: [MenuBarComponent] {
+        MenuBarComponent.normalizedOrder(
+            provisionalMenuBarOrder ?? appState.menuBarComponentOrder
+        )
+    }
+
+    private var displayedMenuBarPreviewLines: (line1: String?, line2: String?) {
+        appState.menuBarPreviewLines(order: displayedMenuBarOrder)
+    }
+
+    private func menuBarComponentChip(_ component: MenuBarComponent, in slot: Int) -> some View {
+        ToggleChip(
+            title: component.settingsTitle,
+            width: component == .station ? 60 : 46,
+            isOn: menuBarVisibilityBinding(for: component)
+        )
+        .onDrag {
+            let order = MenuBarComponent.normalizedOrder(appState.menuBarComponentOrder)
+            draggedMenuBarComponent = component
+            dragOriginMenuBarOrder = order
+            provisionalMenuBarOrder = order
+            menuBarDropTargetSlot = nil
+            return NSItemProvider(object: component.rawValue as NSString)
+        }
+        .onDrop(of: [.text], delegate: MenuBarComponentDropDelegate(
+            targetSlot: slot,
+            appState: appState,
+            draggedComponent: $draggedMenuBarComponent,
+            originOrder: $dragOriginMenuBarOrder,
+            provisionalOrder: $provisionalMenuBarOrder,
+            dropTargetSlot: $menuBarDropTargetSlot
+        ))
+        .overlay {
+            Capsule()
+                .strokeBorder(
+                    Color.accentColor.opacity(menuBarDropTargetSlot == slot ? 0.8 : 0),
+                    lineWidth: 2
+                )
+        }
+        .id(slot)
+        .help("Click to show or hide; drag to reorder; right-click to restore the default order.")
+    }
+
+    private func clearMenuBarDrag() {
+        draggedMenuBarComponent = nil
+        dragOriginMenuBarOrder = nil
+        provisionalMenuBarOrder = nil
+        menuBarDropTargetSlot = nil
+    }
+
+    private func menuBarVisibilityBinding(for component: MenuBarComponent) -> Binding<Bool> {
+        switch component {
+        case .station:
+            Binding(get: { appState.menuBarShowStation }, set: { appState.menuBarShowStation = $0 })
+        case .site:
+            Binding(get: { appState.menuBarShowSite }, set: { appState.menuBarShowSite = $0 })
+        case .artist:
+            Binding(get: { appState.menuBarShowArtist }, set: { appState.menuBarShowArtist = $0 })
+        case .song:
+            Binding(get: { appState.menuBarShowSong }, set: { appState.menuBarShowSong = $0 })
+        }
+    }
+
     /// One line of the shortcuts helper: keycaps left, action label right.
     private func shortcutRow(label: String, @ViewBuilder keys: () -> some View) -> some View {
         HStack(spacing: 3) {
@@ -430,6 +512,62 @@ struct SettingsWindowView: View {
         .frame(minHeight: 22)
         .padding(.horizontal, 16)
         .padding(.vertical, 6)
+    }
+}
+
+private struct MenuBarComponentDropDelegate: DropDelegate {
+    let targetSlot: Int
+    let appState: AppState
+    @Binding var draggedComponent: MenuBarComponent?
+    @Binding var originOrder: [MenuBarComponent]?
+    @Binding var provisionalOrder: [MenuBarComponent]?
+    @Binding var dropTargetSlot: Int?
+
+    func dropEntered(info: DropInfo) {
+        MainActor.assumeIsolated {
+            guard let draggedComponent, let originOrder,
+                  let sourceSlot = originOrder.firstIndex(of: draggedComponent),
+                  originOrder.indices.contains(targetSlot)
+            else { return }
+
+            var preview = originOrder
+            if sourceSlot != targetSlot {
+                preview.swapAt(sourceSlot, targetSlot)
+            }
+            withAnimation(.easeInOut(duration: 0.15)) {
+                provisionalOrder = preview
+                dropTargetSlot = sourceSlot == targetSlot ? nil : targetSlot
+            }
+        }
+    }
+
+    func dropExited(info: DropInfo) {
+        MainActor.assumeIsolated {
+            guard dropTargetSlot == targetSlot else { return }
+            withAnimation(.easeInOut(duration: 0.15)) {
+                provisionalOrder = originOrder
+                dropTargetSlot = nil
+            }
+        }
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        DropProposal(operation: .move)
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        MainActor.assumeIsolated {
+            if let committedOrder = provisionalOrder ?? originOrder {
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    appState.menuBarComponentOrder = MenuBarComponent.normalizedOrder(committedOrder)
+                }
+            }
+            draggedComponent = nil
+            originOrder = nil
+            provisionalOrder = nil
+            dropTargetSlot = nil
+        }
+        return true
     }
 }
 

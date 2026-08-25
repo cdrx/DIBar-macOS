@@ -127,6 +127,59 @@ final class ModelsTests: XCTestCase {
         XCTAssertTrue(composed?.hasSuffix("…") == true)
     }
 
+    func testMenuBarComponentOrderNormalizesStoredValues() {
+        XCTAssertEqual(MenuBarComponent.decodedOrder(nil), MenuBarComponent.defaultOrder)
+        XCTAssertEqual(
+            MenuBarComponent.decodedOrder("song,station,song,unknown"),
+            [.song, .station, .site, .artist]
+        )
+        XCTAssertEqual(
+            MenuBarComponent.encodedOrder([.artist, .song, .site, .station]),
+            "artist,song,site,station"
+        )
+    }
+
+    func testMenuBarComponentOrderPersistsThroughPrefs() {
+        let saved = Prefs.string(.menuBarComponentOrder)
+        defer { Prefs.set(saved, for: .menuBarComponentOrder) }
+
+        Prefs.set("song,artist,site,station", for: .menuBarComponentOrder)
+        XCTAssertEqual(MenuBarComponent.storedOrder(), [.song, .artist, .site, .station])
+    }
+
+    func testMenuBarComponentSwapExchangesFixedSlots() {
+        XCTAssertEqual(
+            MenuBarComponent.swapping(.station, with: .song, in: MenuBarComponent.defaultOrder),
+            [.song, .site, .artist, .station]
+        )
+    }
+
+    @MainActor
+    func testReorderedMenuBarLinesUseSemanticSeparators() {
+        let lines = AppState.composeMenuBarLines(
+            order: [.song, .artist, .station, .site],
+            station: "Ambient", site: "DI.FM",
+            artist: "Metallica", song: "So What",
+            showStation: true, showSite: true,
+            showArtist: true, showSong: true
+        )
+        XCTAssertEqual(lines.line1, "So What – Metallica")
+        XCTAssertEqual(lines.line2, "Ambient · DI.FM")
+    }
+
+    @MainActor
+    func testReorderedMenuBarLinesSkipHiddenAndLoadingComponents() {
+        let lines = AppState.composeMenuBarLines(
+            order: [.song, .artist, .station, .site],
+            station: "Ambient", site: "DI.FM",
+            artist: "Metallica", song: "Loading...",
+            showStation: false, showSite: true,
+            showArtist: true, showSong: true
+        )
+        XCTAssertEqual(lines.line1, "Metallica")
+        XCTAssertEqual(lines.line2, "DI.FM")
+    }
+
     // MARK: - NowPlaying.formatTime
 
     func testFormatTime() {

@@ -175,6 +175,11 @@ final class AppState {
     var menuBarShowSong: Bool = Prefs.bool(.menuBarShowSong, default: true) {
         didSet { Prefs.set(menuBarShowSong, for: .menuBarShowSong) }
     }
+    var menuBarComponentOrder: [MenuBarComponent] = MenuBarComponent.storedOrder() {
+        didSet {
+            Prefs.set(MenuBarComponent.encodedOrder(menuBarComponentOrder), for: .menuBarComponentOrder)
+        }
+    }
 
     // Favorites sync — flips false on a definitive 404/405 from the write
     // endpoint, after which stars still work but only locally.

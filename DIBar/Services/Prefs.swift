@@ -29,6 +29,7 @@ enum Prefs {
         case menuBarShowStation = "menubar_show_station"
         case menuBarShowArtist = "menubar_show_artist"
         case menuBarShowSong = "menubar_show_song"
+        case menuBarComponentOrder = "menubar_component_order"
         case allStationsExpanded = "all_stations_expanded"
         case recentStationsExpanded = "recent_stations_expanded"
         case sleepTimerCustomMinutes = "sleep_timer_custom_minutes"
