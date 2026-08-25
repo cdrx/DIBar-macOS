@@ -3,7 +3,6 @@ import SwiftUI
 struct MenuBarView: View {
     @Environment(AppState.self) private var appState
     @Environment(UpdatePresentationState.self) private var updatePresentation
-    @Environment(\.openURL) private var openURL
     let onOpenSettings: () -> Void
     let onOpenHistory: () -> Void
     let onCheckForUpdates: () -> Void
@@ -19,7 +18,7 @@ struct MenuBarView: View {
                     ErrorBanner(
                         message: "Playback failed — premium subscription may be required",
                         actionTitle: "Subscribe",
-                        action: { openURL(AppState.subscriptionURL) },
+                        action: { WebBrowserOpener.open(AppState.subscriptionURL) },
                         onDismiss: { appState.audioPlayer.playbackError = nil }
                     )
                     Divider()

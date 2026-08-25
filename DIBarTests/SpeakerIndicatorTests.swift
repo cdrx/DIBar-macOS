@@ -20,6 +20,7 @@ final class SpeakerIndicatorTests: XCTestCase {
     }
 
     func testHoveringANonCurrentRowShowsThePlayAffordance() {
+        XCTAssertEqual(SpeakerIndicatorPresentation.playLeadingOffset, 2)
         XCTAssertEqual(
             SpeakerIndicatorPresentation.symbolName(
                 isCurrent: false,
@@ -115,6 +116,10 @@ final class SpeakerIndicatorTests: XCTestCase {
             "speaker.wave.3.fill",
         ])
         XCTAssertEqual(
+            SpeakerIndicatorPresentation.waveSymbols.last,
+            SpeakerIndicatorPresentation.maximumWaveSymbol
+        )
+        XCTAssertEqual(
             (0..<6).map {
                 SpeakerIndicatorPresentation.waveIndex(
                     waveFrame: $0,
@@ -125,12 +130,15 @@ final class SpeakerIndicatorTests: XCTestCase {
         )
     }
 
-    func testLeadingIndicatorAlignsWithNetworkPickerAndClearsText() {
+    func testCompactLeadingIndicatorSlotClearsText() {
         XCTAssertEqual(SpeakerIndicatorPresentation.glyphSize, 10)
-        XCTAssertEqual(PanelMetrics.margin, 16)
-        XCTAssertEqual(PanelMetrics.iconSlot, 24)
-        XCTAssertEqual(PanelMetrics.textColumn, 40)
-        XCTAssertEqual(PanelMetrics.textColumn - PanelMetrics.iconSlot, PanelMetrics.margin)
+        XCTAssertEqual(PanelMetrics.iconSlot, 18)
+        XCTAssertEqual(PanelMetrics.leadingControlColumn, 26)
+        XCTAssertEqual(PanelMetrics.textColumn, 26)
+        XCTAssertEqual(
+            (PanelMetrics.leadingControlColumn - PanelMetrics.iconSlot) / 2,
+            4
+        )
     }
 
     func testSpeakerClockOnlyRunsForVisibleAudibleMotion() {

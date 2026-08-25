@@ -80,7 +80,7 @@ struct StationListView: View {
                     .buttonStyle(.plain)
                 }
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, 12)
             .padding(.vertical, 6)
             .background(.quaternary.opacity(0.5))
 
@@ -472,7 +472,7 @@ struct ChannelRow: View {
     var body: some View {
         Button(action: { appState.playChannel(item) }) {
             HStack(spacing: 0) {
-                // The speaker begins on the same line as the network picker;
+                // Center playback glyphs across the full edge-to-text gutter;
                 // station text begins on a shared column with section titles.
                 SpeakerIndicator(
                     isCurrent: isPlaying,
@@ -480,6 +480,7 @@ struct ChannelRow: View {
                     isHovered: isHovered,
                     isStarting: isStarting
                 )
+                .frame(width: PanelMetrics.leadingControlColumn)
 
                 HStack(spacing: 0) {
                     Text(item.channel.name)
@@ -498,7 +499,6 @@ struct ChannelRow: View {
                 // favorite strips are controls, so tooltips there are noise.
                 .help(item.tooltipText)
             }
-            .padding(.leading, PanelMetrics.margin)
             .padding(.trailing, PanelMetrics.favoriteControlWidth)
             .padding(.vertical, 5)
             .contentShape(Rectangle())
@@ -558,6 +558,7 @@ struct RecentRow: View {
                     isHovered: isHovered,
                     isStarting: isStarting
                 )
+                .frame(width: PanelMetrics.leadingControlColumn)
 
                 HStack(spacing: 0) {
                     Text(entry.name)
@@ -574,7 +575,6 @@ struct RecentRow: View {
                 }
                 .help(tooltipText)
             }
-            .padding(.leading, PanelMetrics.margin)
             .padding(.trailing, PanelMetrics.favoriteControlWidth)
             .padding(.vertical, 5)
             .contentShape(Rectangle())

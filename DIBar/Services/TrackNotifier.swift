@@ -5,6 +5,13 @@ import os
 
 private let log = Logger(subsystem: "com.dibar", category: "TrackNotifier")
 
+enum NotificationAuthorizationState: Equatable {
+    case allowed
+    case notDetermined
+    case denied
+    case failed
+}
+
 /// Posts a macOS notification when the song changes, by diffing a
 /// once-per-second snapshot of the player's public state — the same passive
 /// pattern as HistoryRecorder, no hooks in the timing engine.
@@ -24,6 +31,7 @@ final class TrackNotifier: NSObject {
     private var sessionHasNotifiableTrack = false
     private var pendingPost: Task<Void, Never>?
     private var pendingAnnounce: Task<Void, Never>?
+    private var pendingAuthorizationRequest: Task<NotificationAuthorizationState, Never>?
 
     init(player: AudioPlayer) {
         self.player = player
@@ -82,10 +90,61 @@ final class TrackNotifier: NSObject {
         }
     }
 
-    /// Requests permission; returns whether notifications may be shown.
-    func requestAuthorization() async -> Bool {
+    /// Reads the system's current notification state, requesting permission
+    /// only when explicitly asked and the user has not made a choice yet.
+    /// Concurrent callers share one request so a second call cannot mistake
+    /// an in-flight prompt for a denial.
+    func authorizationState(requestIfNeeded: Bool) async -> NotificationAuthorizationState {
         let center = UNUserNotificationCenter.current()
-        return (try? await center.requestAuthorization(options: [.alert])) ?? false
+        let current = Self.authorizationState(from: await center.notificationSettings())
+        guard current == .notDetermined, requestIfNeeded else { return current }
+
+        if let pendingAuthorizationRequest {
+            return await pendingAuthorizationRequest.value
+        }
+
+        let request = Task { @MainActor in
+            do {
+                _ = try await center.requestAuthorization(options: [.alert])
+                return Self.authorizationState(from: await center.notificationSettings())
+            } catch {
+                log.error("notification authorization request failed: \(error.localizedDescription)")
+                return .failed
+            }
+        }
+        pendingAuthorizationRequest = request
+        let resolved = await request.value
+        pendingAuthorizationRequest = nil
+        return resolved
+    }
+
+    nonisolated static func authorizationState(from settings: UNNotificationSettings) -> NotificationAuthorizationState {
+        authorizationState(for: settings.authorizationStatus)
+    }
+
+    nonisolated static func authorizationState(for status: UNAuthorizationStatus) -> NotificationAuthorizationState {
+        switch status {
+        case .authorized, .provisional, .ephemeral:
+            return .allowed
+        case .notDetermined:
+            return .notDetermined
+        case .denied:
+            return .denied
+        @unknown default:
+            return .failed
+        }
+    }
+
+    nonisolated static func notificationSettingsURL(bundleIdentifier: String?) -> URL {
+        let base = "x-apple.systempreferences:com.apple.Notifications-Settings.extension"
+        guard let bundleIdentifier,
+              !bundleIdentifier.isEmpty,
+              let encoded = bundleIdentifier.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+              let url = URL(string: "\(base)?id=\(encoded)")
+        else {
+            return URL(string: base)!
+        }
+        return url
     }
 
     // MARK: - Tick

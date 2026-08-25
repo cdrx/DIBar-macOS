@@ -97,13 +97,7 @@ final class AppState {
         didSet {
             Prefs.set(notifyTrackChanges, for: .notifyTrackChanges)
             trackNotifier.setEnabled(notifyTrackChanges)
-            guard notifyTrackChanges else { return }
-            notifyPermissionHint = nil
-            Task { [weak self] in
-                guard let self, await !self.trackNotifier.requestAuthorization() else { return }
-                self.notifyTrackChanges = false
-                self.notifyPermissionHint = "Enable DIBar in System Settings → Notifications"
-            }
+            synchronizeNotificationAuthorization(requestIfNeeded: notifyTrackChanges)
         }
     }
     /// Banner after a hotkey-driven channel/site switch — the feedback that
@@ -111,13 +105,7 @@ final class AppState {
     var notifySwitchChanges: Bool = Prefs.bool(.notifyChannelSwitch, default: true) {
         didSet {
             Prefs.set(notifySwitchChanges, for: .notifyChannelSwitch)
-            guard notifySwitchChanges else { return }
-            notifyPermissionHint = nil
-            Task { [weak self] in
-                guard let self, await !self.trackNotifier.requestAuthorization() else { return }
-                self.notifySwitchChanges = false
-                self.notifyPermissionHint = "Enable DIBar in System Settings → Notifications"
-            }
+            synchronizeNotificationAuthorization(requestIfNeeded: notifySwitchChanges)
         }
     }
 
@@ -261,14 +249,7 @@ final class AppState {
         trackNotifier.start()
         // Ask for notification permission up front — a deliberate first-launch
         // moment instead of a prompt buried under a hotkey press.
-        if notifySwitchChanges || notifyTrackChanges {
-            Task { [weak self] in
-                guard let self, await !self.trackNotifier.requestAuthorization() else { return }
-                self.notifySwitchChanges = false
-                self.notifyTrackChanges = false
-                self.notifyPermissionHint = "Enable DIBar in System Settings → Notifications"
-            }
-        }
+        synchronizeNotificationAuthorization(requestIfNeeded: true)
         audioPlayer.onNextTrack = { [weak self] in self?.cycleToNextFavorite() }
         audioPlayer.onPreviousTrack = { [weak self] in self?.cycleToPreviousFavorite() }
         hotkeyManager.onAction = { [weak self] action in
@@ -598,12 +579,44 @@ final class AppState {
 
     // MARK: - Sleep Timer
 
-    func startSleepTimer(minutes: Int) {
+    func startSleepTimer(minutes: Double) {
         sleepTimer.start(minutes: minutes)
     }
 
     func cancelSleepTimer() {
         sleepTimer.cancel()
+    }
+
+    func refreshNotificationAuthorization() {
+        synchronizeNotificationAuthorization(requestIfNeeded: false)
+    }
+
+    private var notificationsAreWanted: Bool {
+        notifySwitchChanges || notifyTrackChanges
+    }
+
+    private func synchronizeNotificationAuthorization(requestIfNeeded: Bool) {
+        guard notificationsAreWanted else {
+            notifyPermissionHint = nil
+            return
+        }
+
+        Task { [weak self] in
+            guard let self else { return }
+            let state = await self.trackNotifier.authorizationState(requestIfNeeded: requestIfNeeded)
+            guard self.notificationsAreWanted else {
+                self.notifyPermissionHint = nil
+                return
+            }
+            switch state {
+            case .allowed, .notDetermined:
+                self.notifyPermissionHint = nil
+            case .denied:
+                self.notifyPermissionHint = "Notifications are disabled in macOS."
+            case .failed:
+                self.notifyPermissionHint = "Couldn’t check macOS notification settings."
+            }
+        }
     }
 
     private func restoreSavedStationIfNeeded() {

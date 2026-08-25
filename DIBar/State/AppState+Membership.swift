@@ -1,7 +1,43 @@
+import AppKit
 import Foundation
 import os
 
 private let log = Logger(subsystem: "com.dibar", category: "AppState")
+
+@MainActor
+enum WebBrowserOpener {
+    static let browserProbeURL = URL(string: "https://example.com")!
+    static let safariURL = URL(fileURLWithPath: "/System/Applications/Safari.app")
+
+    static func browserApplicationURL(
+        resolvedDefault: URL?,
+        safariIsAvailable: Bool
+    ) -> URL? {
+        resolvedDefault ?? (safariIsAvailable ? safariURL : nil)
+    }
+
+    static func open(_ url: URL) {
+        let workspace = NSWorkspace.shared
+        let browserURL = browserApplicationURL(
+            resolvedDefault: workspace.urlForApplication(toOpen: browserProbeURL),
+            safariIsAvailable: FileManager.default.fileExists(atPath: safariURL.path)
+        )
+        guard let browserURL else {
+            log.error("No web browser available for \(url.absoluteString, privacy: .public)")
+            return
+        }
+
+        workspace.open(
+            [url],
+            withApplicationAt: browserURL,
+            configuration: NSWorkspace.OpenConfiguration()
+        ) { _, error in
+            if let error {
+                log.error("Browser failed to open membership URL: \(error.localizedDescription)")
+            }
+        }
+    }
+}
 
 /// Membership and subscription gating.
 extension AppState {

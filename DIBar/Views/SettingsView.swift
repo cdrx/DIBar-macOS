@@ -4,7 +4,6 @@ import ServiceManagement
 /// Content of the standalone "DIBar Settings" window.
 struct SettingsWindowView: View {
     @Environment(AppState.self) private var appState
-    @Environment(\.openURL) private var openURL
     @State private var launchAtLogin: Bool?
     @State private var isUpdatingLaunchAtLogin = false
     @State private var showLogoutConfirmation = false
@@ -41,15 +40,38 @@ struct SettingsWindowView: View {
 
             Divider()
 
-            settingsRow("Menu bar") {
-                HStack(spacing: 4) {
-                    ToggleChip(title: "play/pause", systemImage: "playpause.fill", isOn: Bindable(appState).menuBarShowPlayState)
-                    ToggleChip(title: "Channel", isOn: Bindable(appState).menuBarShowStation)
-                    ToggleChip(title: "Site", isOn: Bindable(appState).menuBarShowSite)
-                    ToggleChip(title: "Artist", isOn: Bindable(appState).menuBarShowArtist)
-                    ToggleChip(title: "Song", isOn: Bindable(appState).menuBarShowSong)
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Menu bar")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                HStack(spacing: 8) {
+                    ToggleChip(
+                        title: "play/pause",
+                        systemImage: "playpause.fill",
+                        width: 28,
+                        isOn: Bindable(appState).menuBarShowPlayState
+                    )
+
+                    Image("MenuBarIcon")
+                        .frame(width: 24, height: 18)
+                        .foregroundStyle(.primary)
+                        .accessibilityLabel("DIBar logo")
+
+                    VStack(spacing: 4) {
+                        ToggleChip(title: "Channel", width: 60, isOn: Bindable(appState).menuBarShowStation)
+                        ToggleChip(title: "Artist", width: 60, isOn: Bindable(appState).menuBarShowArtist)
+                    }
+
+                    VStack(spacing: 4) {
+                        ToggleChip(title: "Site", width: 46, isOn: Bindable(appState).menuBarShowSite)
+                        ToggleChip(title: "Song", width: 46, isOn: Bindable(appState).menuBarShowSong)
+                    }
                 }
+                .frame(maxWidth: .infinity, alignment: .center)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 6)
 
             Image(nsImage: MenuBarLabelRenderer.labelImage(
                 line1: appState.menuBarPreviewLine1,
@@ -127,12 +149,7 @@ struct SettingsWindowView: View {
             .help("Shows the site, channel, and song when you switch channels with a keyboard shortcut.")
 
             if let hint = appState.notifyPermissionHint {
-                Text(hint)
-                    .font(.system(size: 10))
-                    .foregroundStyle(.orange)
-                    .frame(maxWidth: .infinity, alignment: .trailing)
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 4)
+                notificationPermissionHint(hint)
             }
 
             Divider()
@@ -151,7 +168,7 @@ struct SettingsWindowView: View {
             Divider()
 
             Button {
-                openURL(appState.subscriptionURL)
+                WebBrowserOpener.open(appState.subscriptionURL)
             } label: {
                 HStack(spacing: 8) {
                     VStack(alignment: .leading, spacing: 2) {
@@ -316,6 +333,30 @@ struct SettingsWindowView: View {
             .padding(.bottom, 4)
     }
 
+    private func notificationPermissionHint(_ hint: String) -> some View {
+        VStack(alignment: .trailing, spacing: 2) {
+            Text(hint)
+            Button("Open System Settings → Notifications") {
+                openNotificationSettings()
+            }
+            .buttonStyle(.plain)
+            .underline()
+            .cursor(.pointingHand)
+        }
+        .font(.system(size: 10))
+        .foregroundStyle(.orange)
+        .frame(maxWidth: .infinity, alignment: .trailing)
+        .padding(.horizontal, 16)
+        .padding(.bottom, 4)
+    }
+
+    private func openNotificationSettings() {
+        let appURL = TrackNotifier.notificationSettingsURL(bundleIdentifier: Bundle.main.bundleIdentifier)
+        if !NSWorkspace.shared.open(appURL) {
+            _ = NSWorkspace.shared.open(TrackNotifier.notificationSettingsURL(bundleIdentifier: nil))
+        }
+    }
+
     private var qualityMenu: some View {
         Menu {
             ForEach(StreamQuality.allCases) { quality in
@@ -432,6 +473,7 @@ private struct KeyCap: View {
 private struct ToggleChip: View {
     let title: String
     var systemImage: String? = nil
+    var width: CGFloat? = nil
     @Binding var isOn: Bool
     @State private var isHovered = false
 
@@ -446,8 +488,9 @@ private struct ToggleChip: View {
                         .font(.system(size: 10, weight: isOn ? .semibold : .regular))
                 }
             }
+                .frame(width: width)
                 .foregroundStyle(isOn ? Color.white : Color.secondary)
-                .padding(.horizontal, 8)
+                .padding(.horizontal, width == nil ? 8 : 0)
                 .padding(.vertical, 3)
                 .background(
                     isOn ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.quaternary),
@@ -455,7 +498,7 @@ private struct ToggleChip: View {
                 )
                 .overlay(
                     Capsule()
-                        .strokeBorder(Color.accentColor.opacity(isHovered ? 0.9 : 0), lineWidth: 1.5)
+                        .strokeBorder(Color.accentColor.opacity(isHovered ? 0.45 : 0), lineWidth: 1)
                 )
                 .contentShape(Capsule())
         }

@@ -426,6 +426,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, @preconcurrency SPUSta
         resumePendingUpdateIfNeeded()
     }
 
+    func applicationDidBecomeActive(_ notification: Notification) {
+        appState?.refreshNotificationAuthorization()
+    }
+
     // MARK: - Auxiliary windows
 
     private var settingsWindow: NSWindow?

@@ -8,7 +8,16 @@ struct SleepTimerView: View {
     @State private var isOpen = false
     @State private var customMinutes = Prefs.string(.sleepTimerCustomMinutes) ?? "45"
 
-    private let presets = [15, 30, 60, 90]
+    private let presets = [
+        SleepTimerPreset(minutes: 15, label: "15 minutes"),
+        SleepTimerPreset(minutes: 30, label: "30 minutes"),
+        SleepTimerPreset(minutes: 45, label: "45 minutes"),
+        SleepTimerPreset(minutes: 60, label: "1 hour"),
+        SleepTimerPreset(minutes: 120, label: "2 hours"),
+        SleepTimerPreset(minutes: 240, label: "4 hours"),
+        SleepTimerPreset(minutes: 480, label: "8 hours"),
+        SleepTimerPreset(minutes: 720, label: "12 hours"),
+    ]
 
     private var isActive: Bool { appState.sleepTimerEndDate != nil }
 
@@ -41,7 +50,7 @@ struct SleepTimerView: View {
     }
 
     private var popoverContent: some View {
-        DropdownContainer(width: 170) {
+        DropdownContainer(width: 190) {
             if let endDate = appState.sleepTimerEndDate {
                 HStack {
                     CountdownText(endDate: endDate) { remaining in
@@ -63,9 +72,9 @@ struct SleepTimerView: View {
                     .padding(.vertical, 4)
             }
 
-            ForEach(presets, id: \.self) { minutes in
-                TimerRow(label: "\(minutes) minutes") {
-                    appState.startSleepTimer(minutes: minutes)
+            ForEach(presets) { preset in
+                TimerRow(label: preset.label) {
+                    appState.startSleepTimer(minutes: preset.minutes)
                     isOpen = false
                 }
             }
@@ -74,7 +83,7 @@ struct SleepTimerView: View {
                 .padding(.vertical, 4)
 
             HStack(spacing: 6) {
-                TextField("min", text: $customMinutes)
+                TextField("min", text: customMinutesBinding)
                     .textFieldStyle(.roundedBorder)
                     .font(.system(size: 11))
                     .frame(width: 44)
@@ -82,10 +91,11 @@ struct SleepTimerView: View {
                 Text("minutes")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: true, vertical: false)
                 Spacer()
                 Button("Start", action: startCustomTimer)
                     .controlSize(.small)
-                    .disabled(Int(customMinutes) == nil)
+                    .disabled(SleepTimerInput.minutes(from: customMinutes) == nil)
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 5)
@@ -93,11 +103,26 @@ struct SleepTimerView: View {
     }
 
     private func startCustomTimer() {
-        guard let minutes = Int(customMinutes), minutes > 0 else { return }
-        Prefs.set(String(minutes), for: .sleepTimerCustomMinutes)
+        guard let minutes = SleepTimerInput.effectiveMinutes(from: customMinutes) else { return }
+        customMinutes = SleepTimerInput.storedValue(for: minutes)
+        Prefs.set(customMinutes, for: .sleepTimerCustomMinutes)
         appState.startSleepTimer(minutes: minutes)
         isOpen = false
     }
+
+    private var customMinutesBinding: Binding<String> {
+        Binding(
+            get: { customMinutes },
+            set: { customMinutes = SleepTimerInput.sanitized($0) }
+        )
+    }
+}
+
+private struct SleepTimerPreset: Identifiable {
+    let minutes: Double
+    let label: String
+
+    var id: Double { minutes }
 }
 
 /// Owns the once-per-second tick so only the label re-renders, and only
@@ -110,7 +135,7 @@ private struct CountdownText<Content: View>: View {
     private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     var body: some View {
-        content(max(Int(endDate.timeIntervalSince(now)), 0))
+        content(max(Int(ceil(endDate.timeIntervalSince(now))), 0))
             .onReceive(timer) { now = $0 }
     }
 }

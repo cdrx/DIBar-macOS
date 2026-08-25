@@ -1,7 +1,78 @@
 import XCTest
+import UserNotifications
 @testable import DIBar
 
 final class ModelsTests: XCTestCase {
+    // MARK: - Notification authorization
+
+    func testNotificationAuthorizationStatusMapping() {
+        XCTAssertEqual(TrackNotifier.authorizationState(for: .authorized), .allowed)
+        XCTAssertEqual(TrackNotifier.authorizationState(for: .provisional), .allowed)
+        XCTAssertEqual(TrackNotifier.authorizationState(for: .notDetermined), .notDetermined)
+        XCTAssertEqual(TrackNotifier.authorizationState(for: .denied), .denied)
+    }
+
+    func testNotificationSettingsURLTargetsDIBar() {
+        XCTAssertEqual(
+            TrackNotifier.notificationSettingsURL(bundleIdentifier: "com.di-fm-menubar.app").absoluteString,
+            "x-apple.systempreferences:com.apple.Notifications-Settings.extension?id=com.di-fm-menubar.app"
+        )
+        XCTAssertEqual(
+            TrackNotifier.notificationSettingsURL(bundleIdentifier: nil).absoluteString,
+            "x-apple.systempreferences:com.apple.Notifications-Settings.extension"
+        )
+    }
+
+    // MARK: - Sleep timer input
+
+    func testSleepTimerInputSanitizesCharactersAndExtraPeriods() {
+        XCTAssertEqual(SleepTimerInput.sanitized("a1.2x.3"), "1.23")
+        XCTAssertEqual(SleepTimerInput.sanitized(".1"), ".1")
+        XCTAssertEqual(SleepTimerInput.sanitized("12"), "12")
+    }
+
+    func testSleepTimerInputAcceptsPositiveDecimalsOnly() {
+        XCTAssertEqual(SleepTimerInput.minutes(from: "0.1"), 0.1)
+        XCTAssertEqual(SleepTimerInput.minutes(from: ".1"), 0.1)
+        XCTAssertEqual(SleepTimerInput.minutes(from: "1."), 1)
+        XCTAssertNil(SleepTimerInput.minutes(from: ""))
+        XCTAssertNil(SleepTimerInput.minutes(from: "."))
+        XCTAssertNil(SleepTimerInput.minutes(from: "0"))
+    }
+
+    func testSleepTimerInputRetainsMaximumAndNormalizesStorage() {
+        XCTAssertEqual(SleepTimerInput.effectiveMinutes(from: "900"), 720)
+        XCTAssertEqual(SleepTimerInput.storedValue(for: 720), "720")
+        XCTAssertEqual(SleepTimerInput.storedValue(for: 0.1), "0.1")
+    }
+
+    @MainActor
+    func testDecimalSleepTimerBuildsSixSecondDeadline() {
+        let timer = SleepTimer()
+        let before = Date()
+        timer.start(minutes: 0.1)
+        let interval = timer.endDate?.timeIntervalSince(before)
+        XCTAssertNotNil(interval)
+        XCTAssertEqual(interval!, 6, accuracy: 0.1)
+        timer.cancel()
+    }
+
+    @MainActor
+    func testWebBrowserSelectionPrefersDefaultAndFallsBackToSafari() {
+        let chrome = URL(fileURLWithPath: "/Applications/Google Chrome.app")
+        XCTAssertEqual(
+            WebBrowserOpener.browserApplicationURL(resolvedDefault: chrome, safariIsAvailable: true),
+            chrome
+        )
+        XCTAssertEqual(
+            WebBrowserOpener.browserApplicationURL(resolvedDefault: nil, safariIsAvailable: true),
+            WebBrowserOpener.safariURL
+        )
+        XCTAssertNil(
+            WebBrowserOpener.browserApplicationURL(resolvedDefault: nil, safariIsAvailable: false)
+        )
+    }
+
     // MARK: - Menu-bar line composition
 
     @MainActor

@@ -13,13 +13,12 @@ extension Color {
 }
 
 enum PanelMetrics {
-    /// The panel's standard left margin. In DIBar the network picker begins
-    /// with text, so the playback glyph's left edge aligns to this line.
-    static let margin: CGFloat = 16
-    /// The glyph and the whitespace between it and the station name.
-    static let iconSlot: CGFloat = 24
+    /// Stable room for the centered playback glyph.
+    static let iconSlot: CGFloat = 18
+    /// Full edge-to-text gutter used to center station-list playback controls.
+    static let leadingControlColumn: CGFloat = 26
     /// Shared starting position for section titles and station names.
-    static var textColumn: CGFloat { margin + iconSlot }
+    static var textColumn: CGFloat { leadingControlColumn }
     static let slotHeight: CGFloat = 14
     /// Full-height trailing target reserved for the favorite control.
     static let favoriteControlWidth: CGFloat = 32
@@ -112,10 +111,11 @@ extension View {
 /// stepped animation can be tested without instantiating SwiftUI views.
 enum SpeakerIndicatorPresentation {
     static let steadyWaveSymbol = "speaker.wave.2.fill"
+    static let maximumWaveSymbol = "speaker.wave.3.fill"
     static let waveSymbols = [
         "speaker.wave.1.fill",
         steadyWaveSymbol,
-        "speaker.wave.3.fill",
+        maximumWaveSymbol,
     ]
     static var waveFrameCount: Int { waveSymbols.count }
     static let waveCycleDuration: TimeInterval = 2.0
@@ -123,6 +123,7 @@ enum SpeakerIndicatorPresentation {
         waveCycleDuration / Double(waveFrameCount)
     }
     static let glyphSize: CGFloat = 10
+    static let playLeadingOffset: CGFloat = 2
 
     static func symbolName(
         isCurrent: Bool,
@@ -166,7 +167,14 @@ struct SpeakerIndicator: View {
     var isStarting: Bool = false
 
     var body: some View {
-        Group {
+        ZStack(alignment: .leading) {
+            // This invisible maximum-wave symbol fixes the footprint's size.
+            // Smaller speaker states and the play cue share its leading edge.
+            Image(systemName: SpeakerIndicatorPresentation.maximumWaveSymbol)
+                .font(.system(size: SpeakerIndicatorPresentation.glyphSize))
+                .hidden()
+                .accessibilityHidden(true)
+
             if isCurrent && isAudible {
                 ZStack(alignment: .leading) {
                     waveLayer(symbol: "speaker.wave.1.fill", index: 0)
@@ -185,17 +193,17 @@ struct SpeakerIndicator: View {
                 Image(systemName: "play.fill")
                     .font(.system(size: SpeakerIndicatorPresentation.glyphSize))
                     .foregroundStyle(.secondary)
+                    .offset(x: SpeakerIndicatorPresentation.playLeadingOffset)
             } else {
                 Color.clear
             }
         }
-        // Align every variant to the network picker's text edge above. The
-        // ZStack keeps the animated speaker bodies coincident while this slot
-        // supplies a stable gap before the station name.
+        // Center the maximum-wave footprint once. The leading-aligned layers
+        // keep the speaker body and play cue fixed while waves step outward.
         .frame(
             width: PanelMetrics.iconSlot,
             height: PanelMetrics.slotHeight,
-            alignment: .leading
+            alignment: .center
         )
     }
 
