@@ -180,6 +180,69 @@ final class ModelsTests: XCTestCase {
         XCTAssertEqual(lines.line2, "DI.FM")
     }
 
+    /// The settings simulation draws the parts and the status item draws the
+    /// joined line. Rejoining the parts must reproduce the line exactly, or the
+    /// two drift apart.
+    @MainActor
+    func testMenuBarPartsRejoinToTheComposedLines() {
+        func assertRejoins(
+            order: [MenuBarComponent],
+            station: String?, site: String?, artist: String?, song: String?,
+            showStation: Bool = true, showSite: Bool = true,
+            showArtist: Bool = true, showSong: Bool = true,
+            line: UInt = #line
+        ) -> (line1: String?, line2: String?) {
+            let lines = AppState.composeMenuBarLines(
+                order: order, station: station, site: site, artist: artist, song: song,
+                showStation: showStation, showSite: showSite,
+                showArtist: showArtist, showSong: showSong
+            )
+            let parts = AppState.composeMenuBarParts(
+                order: order, station: station, site: site, artist: artist, song: song,
+                showStation: showStation, showSite: showSite,
+                showArtist: showArtist, showSong: showSong
+            )
+            func join(_ parts: [MenuBarPart]) -> String? {
+                parts.isEmpty ? nil : parts.map { $0.separatorBefore + $0.text }.joined()
+            }
+            XCTAssertEqual(join(parts.line1), lines.line1, line: line)
+            XCTAssertEqual(join(parts.line2), lines.line2, line: line)
+            return lines
+        }
+
+        // Untruncated, both separator flavors.
+        _ = assertRejoins(
+            order: [.song, .artist, .station, .site],
+            station: "Ambient", site: "DI.FM",
+            artist: "Metallica", song: "So What"
+        )
+
+        // The cut lands inside a component.
+        _ = assertRejoins(
+            order: MenuBarComponent.defaultOrder,
+            station: String(repeating: "A", count: 20), site: String(repeating: "B", count: 20),
+            artist: "Metallica", song: "So What"
+        )
+
+        // The cut lands inside the " · " separator, orphaning it and the
+        // ellipsis from any surviving part — the case the mapping must repair.
+        let straddle = assertRejoins(
+            order: MenuBarComponent.defaultOrder,
+            station: String(repeating: "A", count: 33), site: "DI.FM",
+            artist: "Metallica", song: "So What"
+        )
+        XCTAssertEqual(straddle.line1?.count, 35)
+        XCTAssertTrue(straddle.line1?.hasSuffix("…") == true)
+
+        // Hidden components drop out of the parts entirely.
+        _ = assertRejoins(
+            order: MenuBarComponent.defaultOrder,
+            station: "Ambient", site: "DI.FM",
+            artist: "Metallica", song: "So What",
+            showStation: false, showSong: false
+        )
+    }
+
     // MARK: - NowPlaying.formatTime
 
     func testFormatTime() {

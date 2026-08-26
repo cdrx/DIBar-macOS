@@ -44,41 +44,7 @@ struct SettingsWindowView: View {
 
             Divider()
 
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Menu bar")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                HStack(spacing: 8) {
-                    ToggleChip(
-                        title: "play/pause",
-                        systemImage: "playpause.fill",
-                        width: 28,
-                        isOn: Bindable(appState).menuBarShowPlayState
-                    )
-
-                    Image("MenuBarIcon")
-                        .frame(width: 24, height: 18)
-                        .foregroundStyle(.primary)
-                        .accessibilityLabel("DIBar logo")
-
-                    menuBarMetadataGrid
-                }
-                .frame(maxWidth: .infinity, alignment: .center)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 6)
-
-            Image(nsImage: MenuBarLabelRenderer.labelImage(
-                line1: displayedMenuBarPreviewLines.line1,
-                line2: displayedMenuBarPreviewLines.line2,
-                glyph: previewGlyph
-            ))
-            .padding(.horizontal, 10)
-            .padding(.vertical, 4)
-            .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 6))
-            .frame(maxWidth: .infinity)
-            .padding(.bottom, 6)
+            menuBarSection
 
             Divider()
 
@@ -126,27 +92,38 @@ struct SettingsWindowView: View {
                 }
             }
             .padding(.horizontal, 16)
-            .padding(.bottom, 6)
+            // Matches the 10pt a settingsRow leaves below its caption, so the
+            // keycaps do not sit tighter against the divider than every other
+            // block in the window.
+            .padding(.bottom, 10)
 
             Divider()
 
-            settingsRow("Notification on song change") {
-                Toggle("", isOn: Bindable(appState).notifyTrackChanges)
-                    .toggleStyle(.checkbox)
-                    .labelsHidden()
-            }
-            .help("Shows a notification with the artist and song each time the track changes while the popover is closed.")
+            // Grouped: two rows about the same thing. Tightened to 4pt between
+            // them and 10pt to the dividers, so proximity now reads as
+            // relatedness — stacked settingsRows put 12pt between siblings and
+            // only 6pt at the boundary, which said the opposite.
+            VStack(spacing: 0) {
+                settingsRow("Notification on song change", verticalPadding: 2) {
+                    Toggle("", isOn: Bindable(appState).notifyTrackChanges)
+                        .toggleStyle(.checkbox)
+                        .labelsHidden()
+                }
+                .help("Shows a notification with the artist and song each time the track changes while the popover is closed.")
 
-            settingsRow("Notification on channel switch") {
-                Toggle("", isOn: Bindable(appState).notifySwitchChanges)
-                    .toggleStyle(.checkbox)
-                    .labelsHidden()
-            }
-            .help("Shows the site, channel, and song when you switch channels with a keyboard shortcut.")
+                settingsRow("Notification on channel switch", verticalPadding: 2) {
+                    Toggle("", isOn: Bindable(appState).notifySwitchChanges)
+                        .toggleStyle(.checkbox)
+                        .labelsHidden()
+                }
+                .help("Shows the site, channel, and song when you switch channels with a keyboard shortcut.")
 
-            if let hint = appState.notifyPermissionHint {
-                notificationPermissionHint(hint)
+                if let hint = appState.notifyPermissionHint {
+                    notificationPermissionHint(hint)
+                        .padding(.top, 4)
+                }
             }
+            .padding(.vertical, 8)
 
             Divider()
 
@@ -387,28 +364,62 @@ struct SettingsWindowView: View {
         .cursor(.pointingHand)
     }
 
-    /// Glyph for the preview card: honors the chip, shows the real state when
-    /// a station is loaded, and demonstrates "playing" as the idle placeholder.
-    private var previewGlyph: MenuBarLabelRenderer.PlaybackGlyph {
-        guard appState.menuBarShowPlayState else { return .none }
-        if appState.audioPlayer.currentChannel != nil {
-            return MenuBarLabelRenderer.glyph(for: appState.audioPlayer)
+    /// Caption, the simulated menu bar, and the affordance hint. There is only
+    /// one representation here on purpose: the user drags and hides the real
+    /// values, so there is no schematic that has to be related to a preview.
+    private var menuBarSection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Menu bar appearance")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+
+            // The anchor sits outside the card because it is not editable. The
+            // card holds exactly what the user can rearrange, so its tint is
+            // the boundary and no divider is needed.
+            HStack(alignment: .center, spacing: Self.menuBarAnchorGap) {
+                menuBarAnchor
+                    .frame(width: Self.menuBarAnchorWidth, alignment: .leading)
+                menuBarCard
+            }
+            .padding(.top, 8)
+
+            // Indented to the grips rather than the card edge, so the text
+            // starts on the same line as the things it describes. Broken by
+            // hand, one gesture per line — left to wrap it splits mid-clause.
+            Text("Click any to hide\nDrag any to reorder\nRight click to restore defaults")
+                .font(.system(size: 10))
+                .foregroundStyle(.tertiary)
+                .lineSpacing(1)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(
+                    .leading,
+                    Self.menuBarAnchorWidth + Self.menuBarAnchorGap + Self.menuBarCardPadding
+                )
+                .padding(.top, 6)
         }
-        return .playing
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .onDisappear(perform: clearMenuBarDrag)
     }
 
-    private var menuBarMetadataGrid: some View {
-        let order = displayedMenuBarOrder
-        return HStack(spacing: 8) {
-            VStack(spacing: 4) {
-                menuBarComponentChip(order[0], in: 0)
-                menuBarComponentChip(order[2], in: 2)
-            }
-            VStack(spacing: 4) {
-                menuBarComponentChip(order[1], in: 1)
-                menuBarComponentChip(order[3], in: 3)
-            }
+    /// The status item, drawn at 1.25× so its pieces are legible and grabbable.
+    /// Metrics track `MenuBarLabelRenderer`'s own constants: 18pt icon → 22,
+    /// 8pt symbol gap → 10, 4pt icon gap → 5, 9pt text → 11.
+    private var menuBarCard: some View {
+        let lines = appState.menuBarSimulationLines(order: displayedMenuBarOrder)
+        return VStack(alignment: .leading, spacing: 1) {
+            menuBarSimulatedLine(lines.line1, startingAt: 0, weight: .semibold)
+            menuBarSimulatedLine(lines.line2, startingAt: 2, weight: .regular)
         }
+        .padding(.horizontal, Self.menuBarCardPadding)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 8))
+        .contentShape(RoundedRectangle(cornerRadius: 8))
+        // Backstop: a release on the logo or in the trailing space reaches no
+        // slot delegate, which would otherwise strand the provisional order.
+        .onDrop(of: [.text], delegate: menuBarDropDelegate(for: Self.menuBarCardDropSlot))
         .contextMenu {
             Button("Restore Default Order") {
                 withAnimation(.easeInOut(duration: 0.15)) {
@@ -420,22 +431,79 @@ struct SettingsWindowView: View {
         }
     }
 
-    private var displayedMenuBarOrder: [MenuBarComponent] {
-        MenuBarComponent.normalizedOrder(
-            provisionalMenuBarOrder ?? appState.menuBarComponentOrder
-        )
+    /// Glyph 10 + gap 10 + logo 22. Fixed so the hint below can be indented to
+    /// the card's leading edge exactly.
+    private static let menuBarAnchorWidth: CGFloat = 42
+    private static let menuBarAnchorGap: CGFloat = 10
+    /// Card inset. 8 not 10: a realistic worst-case line (35 chars plus two
+    /// grips) runs ~212pt, and the hover pill already insets itself by 4.
+    private static let menuBarCardPadding: CGFloat = 8
+
+    /// The status item's fixed anchor: transport glyph and logo. Neither moves
+    /// nor hides, so neither is a control — no hover response, no cursor
+    /// change, no grip. It sits outside the card for the same reason.
+    private var menuBarAnchor: some View {
+        HStack(spacing: 10) {
+            // A play triangle regardless of what is actually playing: here it
+            // stands for the transport slot, not the current state, and must
+            // not change under the user's cursor.
+            Image(systemName: "play.fill")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.primary)
+                .frame(width: 10)
+                .accessibilityLabel("Play state indicator")
+
+            Image("MenuBarIcon")
+                .resizable()
+                .frame(width: 22, height: 22)
+                .foregroundStyle(.primary)
+                .accessibilityLabel("DIBar logo")
+        }
+        .help("The play indicator and the DIBar logo always show — the logo is what you click.")
     }
 
-    private var displayedMenuBarPreviewLines: (line1: String?, line2: String?) {
-        appState.menuBarPreviewLines(order: displayedMenuBarOrder)
+    /// One line of the label. `startingAt` is the slot index of its first
+    /// component — slots 0+1 make line 1, slots 2+3 line 2.
+    private func menuBarSimulatedLine(
+        _ slots: [MenuBarSlot],
+        startingAt firstSlot: Int,
+        weight: Font.Weight
+    ) -> some View {
+        HStack(spacing: 0) {
+            ForEach(Array(slots.enumerated()), id: \.element.id) { offset, slot in
+                if let separator = slot.separatorBefore {
+                    // A separator is only as present as the items it joins, and
+                    // it has to fade on the same clock or it snaps mid-crossfade.
+                    let joinsVisible = slots[offset - 1].isVisible && slot.isVisible
+                    Text(separator)
+                        .font(.system(size: 11, weight: weight))
+                        .foregroundStyle(.primary)
+                        .opacity(joinsVisible ? 1 : 0.35)
+                        .animation(MenuBarItemView.hideFade, value: joinsVisible)
+                        .fixedSize()
+                }
+                menuBarSlotItem(slot, in: firstSlot + offset, weight: weight)
+            }
+        }
     }
 
-    private func menuBarComponentChip(_ component: MenuBarComponent, in slot: Int) -> some View {
-        ToggleChip(
-            title: component.settingsTitle,
-            width: component == .station ? 60 : 46,
-            isOn: menuBarVisibilityBinding(for: component)
+    private func menuBarSlotItem(
+        _ slot: MenuBarSlot,
+        in index: Int,
+        weight: Font.Weight
+    ) -> some View {
+        let component = slot.component
+        return MenuBarItemView(
+            slot: slot,
+            weight: weight,
+            isDropTarget: menuBarDropTargetSlot == index,
+            isDragActive: draggedMenuBarComponent != nil,
+            action: { menuBarVisibilityBinding(for: component).wrappedValue.toggle() }
         )
+        .opacity(draggedMenuBarComponent == component ? 0.4 : 1)
+        // Hidden slots surrender width first: the 35-character cap governs the
+        // visible line only, so two long ghosts can still overflow the card.
+        .layoutPriority(slot.isVisible ? 1 : 0)
         .onDrag {
             let order = MenuBarComponent.normalizedOrder(appState.menuBarComponentOrder)
             draggedMenuBarComponent = component
@@ -443,24 +511,35 @@ struct SettingsWindowView: View {
             provisionalMenuBarOrder = order
             menuBarDropTargetSlot = nil
             return NSItemProvider(object: component.rawValue as NSString)
+        } preview: {
+            // At rest an item is bare text, which makes a weak drag image.
+            MenuBarItemView(slot: slot, weight: weight, isDropTarget: true, action: {})
         }
-        .onDrop(of: [.text], delegate: MenuBarComponentDropDelegate(
+        // Identity travels with the component, not the slot, so a swap moves
+        // the item rather than recycling the view and cross-fading the words.
+        .id(component)
+        .onDrop(of: [.text], delegate: menuBarDropDelegate(for: index))
+    }
+
+    private var displayedMenuBarOrder: [MenuBarComponent] {
+        MenuBarComponent.normalizedOrder(
+            provisionalMenuBarOrder ?? appState.menuBarComponentOrder
+        )
+    }
+
+    /// Outside the 0..<4 slot range, so the card-level delegate never previews a
+    /// swap on hover — it only commits whatever the slot delegates staged.
+    private static let menuBarCardDropSlot = -1
+
+    private func menuBarDropDelegate(for slot: Int) -> MenuBarComponentDropDelegate {
+        MenuBarComponentDropDelegate(
             targetSlot: slot,
             appState: appState,
             draggedComponent: $draggedMenuBarComponent,
             originOrder: $dragOriginMenuBarOrder,
             provisionalOrder: $provisionalMenuBarOrder,
             dropTargetSlot: $menuBarDropTargetSlot
-        ))
-        .overlay {
-            Capsule()
-                .strokeBorder(
-                    Color.accentColor.opacity(menuBarDropTargetSlot == slot ? 0.8 : 0),
-                    lineWidth: 2
-                )
-        }
-        .id(slot)
-        .help("Click to show or hide; drag to reorder; right-click to restore the default order.")
+        )
     }
 
     private func clearMenuBarDrag() {
@@ -501,7 +580,13 @@ struct SettingsWindowView: View {
     }
 
     /// Caption on the left, control flush right, uniform height and padding.
-    private func settingsRow(_ caption: String, @ViewBuilder control: () -> some View) -> some View {
+    /// `verticalPadding` drops for rows stacked inside a group, where 6 puts
+    /// more space between siblings than the group leaves at its own edges.
+    private func settingsRow(
+        _ caption: String,
+        verticalPadding: CGFloat = 6,
+        @ViewBuilder control: () -> some View
+    ) -> some View {
         HStack {
             Text(caption)
                 .font(.system(size: 11))
@@ -511,7 +596,7 @@ struct SettingsWindowView: View {
         }
         .frame(minHeight: 22)
         .padding(.horizontal, 16)
-        .padding(.vertical, 6)
+        .padding(.vertical, verticalPadding)
     }
 }
 
@@ -606,43 +691,123 @@ private struct KeyCap: View {
     }
 }
 
-// MARK: - Toggle Chip
+// MARK: - Simulated Menu Bar Item
 
-private struct ToggleChip: View {
-    let title: String
-    var systemImage: String? = nil
-    var width: CGFloat? = nil
-    @Binding var isOn: Bool
+/// Chrome shared by every piece of the simulated label. At rest a piece is
+/// bare text, exactly as the menu bar draws it; the background appears only
+/// under the cursor, so the simulation stays honest until you reach for it.
+/// Two columns of dots — the conventional "this object moves" mark. Drawn
+/// rather than taken from SF Symbols so the dot size tracks the 11pt text.
+private struct DragGrip: View {
+    var body: some View {
+        HStack(spacing: 1.5) {
+            ForEach(0..<2, id: \.self) { _ in
+                VStack(spacing: 1.5) {
+                    ForEach(0..<3, id: \.self) { _ in
+                        Circle().frame(width: 1.5, height: 1.5)
+                    }
+                }
+            }
+        }
+        .foregroundStyle(.secondary)
+    }
+}
+
+private struct MenuBarItemChrome: ViewModifier {
+    var isHovered: Bool = false
+    var isDropTarget: Bool = false
+    /// True while any piece is being dragged, which is when the slots that can
+    /// receive it should declare themselves.
+    var isDragActive: Bool = false
+
+    func body(content: Content) -> some View {
+        content
+            // Inflated rather than padded, so the pill can breathe without
+            // pushing the simulated label's own metrics around.
+            .background {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 4).fill(fill)
+                    if isDragActive && !isDropTarget {
+                        RoundedRectangle(cornerRadius: 4)
+                            .strokeBorder(.tertiary, style: StrokeStyle(lineWidth: 1, dash: [2, 2]))
+                    }
+                }
+                .padding(.horizontal, -4)
+                .padding(.vertical, -2)
+            }
+            .contentShape(Rectangle())
+    }
+
+    private var fill: AnyShapeStyle {
+        if isDropTarget { return AnyShapeStyle(Color.accentColor.opacity(0.25)) }
+        return isHovered ? AnyShapeStyle(.quaternary) : AnyShapeStyle(Color.clear)
+    }
+}
+
+private extension View {
+    func menuBarItemChrome(
+        isHovered: Bool = false,
+        isDropTarget: Bool = false,
+        isDragActive: Bool = false
+    ) -> some View {
+        modifier(MenuBarItemChrome(
+            isHovered: isHovered,
+            isDropTarget: isDropTarget,
+            isDragActive: isDragActive
+        ))
+    }
+}
+
+/// One draggable piece of the simulated label, showing the real value rather
+/// than an abstract name. Hidden pieces stay in place, struck through, so they
+/// can be brought back.
+private struct MenuBarItemView: View {
+    /// Long enough to register as a state change, short enough not to sit
+    /// between the click and the result.
+    static let hideFade = Animation.easeInOut(duration: 0.22)
+
+    let slot: MenuBarSlot
+    let weight: Font.Weight
+    var isDropTarget: Bool = false
+    var isDragActive: Bool = false
+    let action: () -> Void
     @State private var isHovered = false
 
     var body: some View {
-        Button(action: { isOn.toggle() }) {
-            Group {
-                if let systemImage {
-                    Image(systemName: systemImage)
-                        .font(.system(size: 9, weight: isOn ? .semibold : .regular))
-                } else {
-                    Text(title)
-                        .font(.system(size: 10, weight: isOn ? .semibold : .regular))
-                }
+        Button(action: action) {
+            HStack(spacing: 3) {
+                // Always present, not hover-revealed: the whole point is to
+                // answer "what moves here?" before anyone reaches for it. It
+                // sits outside the item's dimming because it is editor chrome,
+                // not part of the label being simulated.
+                DragGrip()
+                    .foregroundStyle(isHovered ? AnyShapeStyle(.secondary) : AnyShapeStyle(.tertiary))
+
+                Text(slot.text)
+                    .font(.system(size: 11, weight: weight))
+                    .foregroundStyle(.primary)
+                    .strikethrough(!slot.isVisible, color: .primary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .opacity(slot.isVisible ? 1 : 0.35)
+                    .animation(Self.hideFade, value: slot.isVisible)
             }
-                .frame(width: width)
-                .foregroundStyle(isOn ? Color.white : Color.secondary)
-                .padding(.horizontal, width == nil ? 8 : 0)
-                .padding(.vertical, 3)
-                .background(
-                    isOn ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.quaternary),
-                    in: Capsule()
-                )
-                .overlay(
-                    Capsule()
-                        .strokeBorder(Color.accentColor.opacity(isHovered ? 0.45 : 0), lineWidth: 1)
-                )
-                .contentShape(Capsule())
+            .menuBarItemChrome(
+                isHovered: isHovered,
+                isDropTarget: isDropTarget,
+                isDragActive: isDragActive
+            )
         }
         .buttonStyle(.plain)
         .onHover { isHovered = $0 }
-        .cursor(.pointingHand)
-        .help(isOn ? "Hide \(title.lowercased()) in the menu bar" : "Show \(title.lowercased()) in the menu bar")
+        .cursor(.openHand)
+        .accessibilityLabel(
+            "\(slot.component.settingsTitle), \(slot.text), \(slot.isVisible ? "shown" : "hidden")"
+        )
+        .help(
+            slot.isVisible
+                ? "Click to hide \(slot.component.settingsTitle.lowercased()); drag to reorder"
+                : "Click to show \(slot.component.settingsTitle.lowercased()); drag to reorder"
+        )
     }
 }

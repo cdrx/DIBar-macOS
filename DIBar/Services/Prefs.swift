@@ -24,7 +24,6 @@ enum Prefs {
         case outputDeviceUID = "output_device_uid"
         case globalHotkeys = "global_hotkeys"
         case sleepTimerQuits = "sleep_timer_quits"
-        case menuBarShowPlayState = "menubar_show_playstate"
         case menuBarShowSite = "menubar_show_site"
         case menuBarShowStation = "menubar_show_station"
         case menuBarShowArtist = "menubar_show_artist"

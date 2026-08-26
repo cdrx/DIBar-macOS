@@ -159,10 +159,9 @@ final class AppState {
     var artworkExpanded: Bool = false
     // Menu bar label components. "Site" in the UI, Network in code.
     // All components default ON for new installs; existing installs that never
-    // touched them are pinned off by the Prefs v2 migration.
-    var menuBarShowPlayState: Bool = Prefs.bool(.menuBarShowPlayState, default: true) {
-        didSet { Prefs.set(menuBarShowPlayState, for: .menuBarShowPlayState) }
-    }
+    // touched them are pinned off by the Prefs v2 migration. The transport
+    // glyph and logo are the status item's fixed anchor, always drawn and
+    // never reordered.
     var menuBarShowSite: Bool = Prefs.bool(.menuBarShowSite, default: false) {
         didSet { Prefs.set(menuBarShowSite, for: .menuBarShowSite) }
     }

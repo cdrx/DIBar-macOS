@@ -946,9 +946,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, @preconcurrency SPUSta
         guard let button = statusItem.button else { return }
         let line1 = appState.menuBarLine1
         let line2 = appState.menuBarLine2
-        let glyph = appState.menuBarShowPlayState
-            ? MenuBarLabelRenderer.glyph(for: appState.audioPlayer)
-            : MenuBarLabelRenderer.PlaybackGlyph.none
+        let glyph = MenuBarLabelRenderer.glyph(for: appState.audioPlayer)
         let updatePhase = updatePresentation.phase
         let showsUpdateBadge = updatePhase != nil
         let key = "\(line1 ?? "")|\(line2 ?? "")|\(glyph)|\(String(describing: updatePhase))"
