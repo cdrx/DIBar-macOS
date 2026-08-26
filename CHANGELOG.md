@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.5
+
+### Menu bar appearance
+
+The menu bar label is now edited directly in Settings. Drag Channel, Site, Artist, and Song title to arrange the two-line layout, click any value to show or hide it, and right-click to restore the default order. The simulation uses live values and matches the rendered label, while the playback indicator and DIBar logo remain fixed.
+
+Channel and site labels now read in a more natural order, and channel tooltips keep the channel and service together on their first line.
+
+### Settings and system integration
+
+Notification settings now report the real macOS permission state and provide a direct link to System Settings when notifications are disabled. Related notification controls and keyboard shortcut help have clearer spacing.
+
+Custom sleep timers accept fractional minutes and retain their saved value. Subscription links open reliably in the default browser.
+
 ## 1.4.3
 
 ### Station browsing
