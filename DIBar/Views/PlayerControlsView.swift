@@ -92,7 +92,7 @@ struct PlayerControlsView: View {
                 .font(.system(size: 28))
         }
         .buttonStyle(.plain)
-        .disabled(player.currentChannel == nil)
+        .disabled(player.currentChannel == nil && !appState.canPlaySavedStation)
     }
 
     private var collapsedArtwork: some View {
