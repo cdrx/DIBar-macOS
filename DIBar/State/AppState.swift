@@ -200,7 +200,7 @@ final class AppState {
 
     var canPlaySavedStation: Bool { savedChannelForSelectedNetwork != nil }
 
-    private var savedChannelForSelectedNetwork: Channel? {
+    var savedChannelForSelectedNetwork: Channel? {
         guard let channelId = Prefs.int(.lastStationId, network: selectedNetwork) else { return nil }
         return channels.first { $0.id == channelId }
     }
